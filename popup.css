@@ -351,6 +351,23 @@ header h1 {
   scrollbar-color: var(--border) transparent;
 }
 
+.list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.list::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+}
+
+.list::-webkit-scrollbar-thumb:hover {
+  background: var(--text-faint);
+}
+
+.list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 .item {
   background: var(--card);
   border: 1px solid var(--border);
@@ -436,6 +453,15 @@ header h1 {
 footer {
   padding: 4px 0 12px;
   text-align: center;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  align-items: center;
+}
+
+footer .sep {
+  font-size: 11px;
+  color: var(--text-faint);
 }
 
 footer a {
@@ -446,4 +472,25 @@ footer a {
 
 footer a:hover {
   text-decoration: underline;
+}
+
+#toast {
+  position: fixed;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%) translateY(16px);
+  background: rgba(0, 0, 0, 0.82);
+  color: #fff;
+  font-size: 12px;
+  padding: 7px 16px;
+  border-radius: 999px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s, transform 0.25s;
+  z-index: 9999;
+}
+
+#toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }

@@ -10,8 +10,16 @@
     <h1>个人知识库</h1>
     <input id="search" type="text" placeholder="搜索标题 / 备注 / 标签...">
     <button id="add-note-btn" class="ghost">新建笔记</button>
+    <button id="import-btn" class="ghost">导入 JSON</button>
+    <input id="import-file" type="file" accept=".json" style="display:none">
     <button id="export-btn" class="ghost">导出 JSON</button>
   </header>
+
+  <div class="bulk-bar hidden" id="bulk-bar">
+    <span class="bulk-count" id="bulk-count">0 项已选</span>
+    <button class="mini danger" id="bulk-delete-btn">删除选中</button>
+    <button class="mini" id="bulk-cancel-btn">取消</button>
+  </div>
 
   <nav class="type-tabs" id="type-tabs"></nav>
 
@@ -47,6 +55,16 @@
 
   <main id="list" class="list"></main>
   <p id="empty" class="empty hidden">没有匹配的内容</p>
+
+  <div class="confirm-overlay hidden" id="confirm-overlay">
+    <div class="confirm-dialog">
+      <div class="confirm-msg" id="confirm-msg"></div>
+      <div class="confirm-actions">
+        <button class="mini danger" id="confirm-yes">确认</button>
+        <button class="mini" id="confirm-no">取消</button>
+      </div>
+    </div>
+  </div>
 
   <footer>点击标题打开原文，点击星星改星级，点击备注/标签可编辑。</footer>
 

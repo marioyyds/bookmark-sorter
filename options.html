@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>个人知识库 - 设置</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <header>
+    <h1>个人知识库 · AI 设置</h1>
+    <p class="sub">配置 DeepSeek 与 AI 助手行为</p>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2><span class="ico">🔑</span> DeepSeek API</h2>
+      <label class="field">
+        <span class="field-label">API Key</span>
+        <div class="input-row">
+          <input id="api-key" type="password" placeholder="sk-..." autocomplete="off">
+          <button id="toggle-key" class="icon-btn" title="显示/隐藏">👁</button>
+        </div>
+        <span class="hint">在 platform.deepseek.com 申请，仅保存在本地浏览器</span>
+      </label>
+      <label class="field">
+        <span class="field-label">模型</span>
+        <div class="input-row">
+          <input id="model" type="text" placeholder="deepseek-chat" list="model-list">
+          <datalist id="model-list">
+            <option value="deepseek-chat">deepseek-chat</option>
+            <option value="deepseek-reasoner">deepseek-reasoner</option>
+          </datalist>
+        </div>
+        <span class="hint">deepseek-chat 通用 / deepseek-reasoner 深度推理</span>
+      </label>
+      <label class="field">
+        <span class="field-label">API 地址</span>
+        <input id="base-url" type="text" placeholder="https://api.deepseek.com">
+        <span class="hint">一般无需修改</span>
+      </label>
+    </section>
+
+    <section class="card">
+      <h2><span class="ico">🤖</span> AI 助手行为</h2>
+      <label class="field switch-field">
+        <span class="field-label">RAG 知识库检索</span>
+        <span class="hint">回答时自动把相关知识库条目作为上下文，让 AI 基于你的收藏回答</span>
+        <input id="rag-enabled" type="checkbox" class="switch">
+      </label>
+      <label class="field switch-field">
+        <span class="field-label">结合整页内容</span>
+        <span class="hint">回答时不仅看选中的文字，还把当前网页正文作为上下文一起发给 AI</span>
+        <input id="page-context" type="checkbox" class="switch">
+      </label>
+      <label class="field switch-field">
+        <span class="field-label">输入框 AI 自动补全</span>
+        <span class="hint">在网页的输入框/编辑器打字时，AI 在光标后显示灰色补全建议，按 Tab 接受</span>
+        <input id="autocomplete" type="checkbox" class="switch">
+      </label>
+      <label class="field">
+        <span class="field-label">翻译目标语言</span>
+        <input id="target-lang" type="text" placeholder="中文">
+        <span class="hint">划词翻译的目标语言，如 中文 / English / 日本語</span>
+      </label>
+    </section>
+
+    <div class="actions">
+      <button id="save-btn" class="primary">保存设置</button>
+      <span id="status" class="status"></span>
+    </div>
+  </main>
+
+  <script src="shared.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

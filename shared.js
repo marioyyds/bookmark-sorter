@@ -244,3 +244,171 @@ function esc(s) {
 function platformColor(id) {
   return id === 'other' ? '#95a5a6' : '#4a90d9';
 }
+
+const AI_SETTINGS_KEY = 'aiSettings';
+
+const AI_SETTINGS_DEFAULTS = {
+  apiKey: '',
+  model: 'deepseek-chat',
+  baseUrl: 'https://api.deepseek.com',
+  ragEnabled: true,
+  targetLang: '中文',
+  autocomplete: true,
+  pageContext: true,
+};
+
+async function getAISettings() {
+  const d = await chrome.storage.local.get(AI_SETTINGS_KEY);
+  return Object.assign({}, AI_SETTINGS_DEFAULTS, d[AI_SETTINGS_KEY] || {});
+}
+
+function buildRagContext(book, query, limit) {
+  const terms = String(query || '')
+    .toLowerCase()
+    .split(/[\s,，。;；:：!！?？]+/)
+    .filter((t) => t.length >= 2);
+
+  const scored = Object.values(book).map((it) => {
+    const hay = (
+      (it.title || '') +
+      ' ' +
+      (it.note || '') +
+      ' ' +
+      (it.tags || []).join(' ') +
+      ' ' +
+      (it.type || '') +
+      ' ' +
+      (it.platformName || '')
+    ).toLowerCase();
+
+    let score = 0;
+    for (const t of terms) {
+      if (hay.includes(t)) score++;
+    }
+    return { it, score };
+  });
+
+  return scored
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit || 5)
+    .map((x) => x.it);
+}
+
+function buildAiMessages(action, payload, settings, book) {
+  const text = payload.text || '';
+
+  if (action === 'translate') {
+    const t = payload.targetLang || settings.targetLang || '中文';
+    return [
+      { role: 'system', content: '你是一名专业翻译。只输出译文，不要任何解释或额外内容。' },
+      { role: 'user', content: '请将以下内容翻译成' + t + '：\n\n' + text },
+    ];
+  }
+  if (action === 'explain') {
+    return [
+      { role: 'system', content: '你是一名耐心的讲解者，用通俗易懂的中文解释概念，可用 Markdown 排版。' },
+      { role: 'user', content: '请解释以下内容：\n\n' + text },
+    ];
+  }
+  if (action === 'summarize') {
+    return [
+      { role: 'system', content: '你是总结助手，输出简洁的中文要点总结，用 Markdown 列表排版。' },
+      { role: 'user', content: '请总结以下内容的要点：\n\n' + text },
+    ];
+  }
+  if (action === 'ask') {
+    const question = payload.question || text || '';
+    let ctx = '';
+    if (settings.ragEnabled) {
+      const relevant = buildRagContext(book, question || text, 5);
+      if (relevant.length) {
+        ctx =
+          '以下是从用户个人知识库中检索到的相关条目，请优先参考它们回答：\n' +
+          relevant
+            .map((it, i) => {
+              const parts = [`[${i + 1}] 标题：${it.title}`, `类型：${it.type}`];
+              if (it.note) parts.push('内容/备注：' + it.note);
+              if (it.url) parts.push('链接：' + it.url);
+              return parts.join('\n');
+            })
+            .join('\n\n');
+      }
+    }
+    return [
+      {
+        role: 'system',
+        content:
+          '你是用户的个人知识库助手。请用中文回答，可用 Markdown 排版。若提供了知识库上下文，请基于它回答并注明引用来源；若无相关知识，请明确说明并给出通用回答。',
+      },
+      {
+        role: 'user',
+        content:
+          '问题：' +
+          question +
+          (text ? '\n\n选中的文本：\n' + text : '') +
+          (ctx ? '\n\n知识库上下文：\n' + ctx : ''),
+      },
+    ];
+  }
+  if (action === 'command') {
+    const instruction = payload.question || payload.command || '';
+    const page = payload.page || '';
+    const history = Array.isArray(payload.history) ? payload.history.slice(-10) : [];
+    let ctx = '';
+    if (settings.ragEnabled) {
+      const relevant = buildRagContext(book, instruction || text, 5);
+      if (relevant.length) {
+        ctx =
+          '以下是从用户个人知识库中检索到的相关条目，可参考：\n' +
+          relevant
+            .map((it, i) => `${[i + 1]} 标题：${it.title}${it.note ? '｜内容：' + it.note : ''}`)
+            .join('\n');
+      }
+    }
+    const hasText = !!text;
+    const userParts = [];
+    if (hasText) userParts.push('选中的文本：\n' + text);
+    if (page) userParts.push('当前页面的完整内容（作为背景上下文，回答时请结合整页内容，而不只限于选中文本）：\n' + page);
+    if (ctx) userParts.push('知识库上下文（供参考，可选用）：\n' + ctx);
+    if (instruction) userParts.push('用户指令：\n' + instruction);
+    if (!hasText && !instruction) userParts.push('（无输入）');
+    const messages = [
+      {
+        role: 'system',
+        content:
+          '你是一个强大的 AI 助手，能执行用户的各种指令：翻译、改写、解释、总结、生成代码、补全内容、润色文档等。回答时应结合用户提供的整个页面内容理解上下文，而不只局限于选中的文字。请严格按指令执行，输出清晰的结果。若指令涉及代码，请直接给出完整代码；若涉及改写/翻译，直接给出结果。可使用 Markdown 排版。',
+      },
+    ];
+    for (const h of history) {
+      if (h && (h.role === 'user' || h.role === 'assistant') && typeof h.content === 'string') {
+        messages.push({ role: h.role, content: h.content.slice(0, 3000) });
+      }
+    }
+    messages.push({ role: 'user', content: userParts.join('\n\n') });
+    return messages;
+  }
+  if (action === 'complete') {
+    const before = payload.text || payload.before || '';
+    const after = payload.after || '';
+    const language = payload.language || '代码/文本';
+    return [
+      {
+        role: 'system',
+        content:
+          '你是代码与文档补全助手。只输出光标位置的续写内容，不要重复已有的文本，不要解释，不要输出完整前后文，只给出紧跟光标之后的补全片段（与上下文衔接自然）。',
+      },
+      {
+        role: 'user',
+        content:
+          '当前语言/场景：' +
+          language +
+          '\n光标之前的文本：\n' +
+          before +
+          (after ? '\n\n光标之后的文本（参考）：\n' + after : '') +
+          '\n\n请直接输出光标之后的补全内容：',
+      },
+    ];
+  }
+  return null;
+}

@@ -10,6 +10,21 @@ let sortBy = 'updated';
 
 const $ = (id) => document.getElementById(id);
 
+let toastTimer = null;
+
+function toast(msg) {
+  let el = $('toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'toast';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 1400);
+}
+
 async function loadCache() {
   bookCache = await getBook();
 }
@@ -121,6 +136,7 @@ $('add-btn').addEventListener('click', async () => {
   $('add-exists').classList.remove('hidden');
   $('add-btn').textContent = '更新';
   renderList();
+  toast('已收录到知识库');
 });
 
 document.querySelector('#add-panel .type-group').addEventListener('click', (e) => {
@@ -184,6 +200,11 @@ $('list').addEventListener('click', async (e) => {
 $('open-manager').addEventListener('click', (e) => {
   e.preventDefault();
   chrome.tabs.create({ url: chrome.runtime.getURL('manager.html') });
+});
+
+$('open-settings').addEventListener('click', (e) => {
+  e.preventDefault();
+  chrome.runtime.openOptionsPage();
 });
 
 init();

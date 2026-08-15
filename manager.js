@@ -4,6 +4,9 @@ let currentTag = 'all';
 let currentStar = 'all';
 let sortBy = 'updated';
 let editingNoteId = null;
+let selectedIds = new Set();
+let toastTimer = null;
+let toastUndo = null;
 
 const $ = (id) => document.getElementById(id);
 
@@ -69,6 +72,28 @@ function filtered() {
   return sortItems(items, sortBy);
 }
 
+function renderBulkBar() {
+  const bar = $('bulk-bar');
+  if (selectedIds.size > 0) {
+    bar.classList.remove('hidden');
+    $('bulk-count').textContent = selectedIds.size + ' 项已选';
+  } else {
+    bar.classList.add('hidden');
+  }
+}
+
+function toggleSelect(id) {
+  if (selectedIds.has(id)) {
+    selectedIds.delete(id);
+  } else {
+    selectedIds.add(id);
+  }
+  renderBulkBar();
+  document.querySelectorAll('.item-select').forEach((cb) => {
+    cb.checked = selectedIds.has(cb.closest('.item').dataset.id);
+  });
+}
+
 function itemHtml(it) {
   const editing = editingNoteId === it.id;
   const titleHtml = editing
@@ -84,8 +109,10 @@ function itemHtml(it) {
   const tagEditHtml = editing
     ? `<input id="tag-editor" class="note-editor" value="${esc((it.tags || []).join(', '))}" placeholder="标签，逗号分隔">`
     : tagsHtml(it.tags);
+  const cbHtml = `<input type="checkbox" class="item-select" ${selectedIds.has(it.id) ? 'checked' : ''}>`;
   return `<div class="item" data-id="${esc(it.id)}">
     <div class="item-head">
+      ${cbHtml}
       ${typeBadgeHtml(it.type)}
       ${titleHtml}
       ${editing ? '' : `<span class="time">${fmtTime(it.updatedAt)}</span>`}
@@ -99,8 +126,8 @@ function itemHtml(it) {
     <div class="tag-row">${tagEditHtml}</div>
     <div class="item-actions">
       ${editing
-        ? `<button class="mini primary" data-act="save">保存</button><button class="mini" data-act="cancel">取消</button>`
-        : `<button class="mini" data-act="edit">编辑</button><button class="mini danger" data-act="del">删除</button>`}
+        ? `<button class="mini primary" data-act="save">✓ 保存</button><button class="mini" data-act="cancel">✕ 取消</button>`
+        : `<button class="mini" data-act="edit">✎ 编辑</button><button class="mini danger" data-act="del">🗑 删除</button>`}
     </div>
   </div>`;
 }
@@ -112,6 +139,7 @@ function render() {
   renderTypeTabs();
   renderTagFilter();
   renderStats();
+  renderBulkBar();
 }
 
 function renderStats() {
@@ -154,6 +182,74 @@ async function createNote() {
   if (input) input.focus();
 }
 
+function toast(msg, undoFn) {
+  let el = $('toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'toast';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  if (undoFn) {
+    const btn = document.createElement('button');
+    btn.textContent = '撤销';
+    btn.addEventListener('click', () => {
+      undoFn();
+      el.classList.remove('show');
+    });
+    el.innerHTML = '';
+    el.textContent = msg + ' ';
+    el.appendChild(btn);
+  }
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+function showConfirm(msg) {
+  return new Promise((resolve) => {
+    const overlay = $('confirm-overlay');
+    $('confirm-msg').textContent = msg;
+    overlay.classList.remove('hidden');
+    const yes = $('confirm-yes');
+    const no = $('confirm-no');
+    const cleanup = (result) => {
+      overlay.classList.add('hidden');
+      yes.removeEventListener('click', onYes);
+      no.removeEventListener('click', onNo);
+      resolve(result);
+    };
+    const onYes = () => cleanup(true);
+    const onNo = () => cleanup(false);
+    yes.addEventListener('click', onYes);
+    no.addEventListener('click', onNo);
+  });
+}
+
+async function bulkDelete() {
+  if (selectedIds.size === 0) return;
+  const count = selectedIds.size;
+  const ok = await showConfirm('确定删除 ' + count + ' 项？');
+  if (!ok) return;
+
+  const backup = {};
+  for (const id of selectedIds) {
+    if (bookCache[id]) backup[id] = { ...bookCache[id] };
+  }
+  for (const id of selectedIds) {
+    delete bookCache[id];
+  }
+  selectedIds.clear();
+  await persist();
+  render();
+  toast(count + ' 项已删除', async () => {
+    Object.assign(bookCache, backup);
+    await persist();
+    render();
+    toast('已恢复');
+  });
+}
+
 $('type-tabs').addEventListener('click', (e) => {
   const btn = e.target.closest('.type-tab');
   if (!btn) return;
@@ -189,6 +285,12 @@ $('list').addEventListener('click', async (e) => {
   if (!itemEl) return;
   const id = itemEl.dataset.id;
 
+  const cb = e.target.closest('.item-select');
+  if (cb) {
+    toggleSelect(id);
+    return;
+  }
+
   if (e.target.closest('.item-note')) {
     editingNoteId = id;
     render();
@@ -210,10 +312,19 @@ $('list').addEventListener('click', async (e) => {
   if (act) {
     const a = act.dataset.act;
     if (a === 'del') {
+      const ok = await showConfirm('确定删除"' + (bookCache[id].title || '此条目') + '"？');
+      if (!ok) return;
+      const backup = { ...bookCache[id] };
       delete bookCache[id];
       if (editingNoteId === id) editingNoteId = null;
       await persist();
       render();
+      toast('已删除', async () => {
+        bookCache[id] = backup;
+        await persist();
+        render();
+        toast('已恢复');
+      });
     } else if (a === 'edit') {
       editingNoteId = id;
       render();
@@ -267,6 +378,61 @@ $('export-btn').addEventListener('click', () => {
   a.download = '知识库备份.json';
   a.click();
   URL.revokeObjectURL(a.href);
+});
+
+$('import-btn').addEventListener('click', () => {
+  $('import-file').click();
+});
+
+$('import-file').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    if (typeof data !== 'object' || data === null) {
+      toast('无效的 JSON 格式');
+      return;
+    }
+
+    let count = 0;
+    for (const [id, item] of Object.entries(data)) {
+      if (item && item.title) {
+        if (bookCache[id]) {
+          bookCache[id] = { ...bookCache[id], ...item, id, updatedAt: Date.now() };
+        } else {
+          bookCache[id] = { ...item, id, createdAt: item.createdAt || Date.now(), updatedAt: Date.now() };
+        }
+        count++;
+      }
+    }
+    await persist();
+    render();
+    toast('已导入 ' + count + ' 项');
+  } catch (err) {
+    toast('导入失败：' + err.message);
+  }
+  e.target.value = '';
+});
+
+$('bulk-delete-btn').addEventListener('click', bulkDelete);
+
+$('bulk-cancel-btn').addEventListener('click', () => {
+  selectedIds.clear();
+  render();
+});
+
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+    e.preventDefault();
+    $('search').focus();
+  }
+  if (e.key === 'Escape') {
+    if (selectedIds.size > 0) {
+      selectedIds.clear();
+      render();
+    }
+  }
 });
 
 (async function init() {
