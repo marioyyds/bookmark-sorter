@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>个人知识库</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <h1>个人知识库</h1>
+    <span id="total-badge" class="badge">0 条</span>
+  </header>
+
+  <section id="add-panel" class="add-panel">
+    <div class="add-head">
+      <div class="add-title" id="add-title">加载中...</div>
+      <div class="add-meta">
+        <span id="add-platform" class="platform-badge hidden">-</span>
+        <span id="add-exists" class="exists-tag hidden">已收录</span>
+      </div>
+    </div>
+    <div class="type-group" id="type-group"></div>
+    <div class="status-group">
+      <span class="star-picker" id="star-picker"></span>
+      <span class="star-picker-name" id="star-picker-name"></span>
+    </div>
+    <input id="tags-input" class="note-input" type="text" placeholder="标签，逗号分隔（如：动态规划, 面试）">
+    <input id="note-input" class="note-input" type="text" placeholder="备注 / 摘要（可选）">
+    <button id="add-btn" class="primary-btn">添加 / 更新</button>
+  </section>
+
+  <div class="toolbar">
+    <nav class="filters" id="filters">
+      <button class="filter-chip active" data-filter="all">全部</button>
+      <button class="filter-chip" data-filter="wrong">错题</button>
+      <button class="filter-chip" data-filter="article">文章</button>
+      <button class="filter-chip" data-filter="ai">AI</button>
+      <button class="filter-chip" data-filter="note">笔记</button>
+    </nav>
+    <select id="sort-select" class="sort-select" title="排序方式">
+      <option value="updated">最近更新</option>
+      <option value="created">最近收录</option>
+      <option value="star-desc">星级高→低</option>
+      <option value="star-asc">星级低→高</option>
+    </select>
+  </div>
+
+  <main id="list" class="list"></main>
+  <p id="empty" class="empty hidden">还没有内容，去收藏第一条吧</p>
+
+  <footer>
+    <a id="open-manager" href="#">打开完整知识库页面</a>
+  </footer>
+
+  <script src="shared.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

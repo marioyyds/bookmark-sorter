@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>个人知识库 - 管理</title>
+  <link rel="stylesheet" href="manager.css">
+</head>
+<body>
+  <header>
+    <h1>个人知识库</h1>
+    <input id="search" type="text" placeholder="搜索标题 / 备注 / 标签...">
+    <button id="add-note-btn" class="ghost">新建笔记</button>
+    <button id="export-btn" class="ghost">导出 JSON</button>
+  </header>
+
+  <nav class="type-tabs" id="type-tabs"></nav>
+
+  <div class="tag-filter" id="tag-filter"></div>
+
+  <section class="stats" id="stats">
+    <div class="stat-card" data-s="all">
+      <span class="num" id="st-total">0</span>
+      <span class="lbl">全部</span>
+    </div>
+    <div class="stat-card" data-s="1">
+      <span class="num" id="st-1">0</span>
+      <span class="lbl stars-lbl" data-stars="1"></span>
+    </div>
+    <div class="stat-card" data-s="2">
+      <span class="num" id="st-2">0</span>
+      <span class="lbl stars-lbl" data-stars="2"></span>
+    </div>
+    <div class="stat-card" data-s="3">
+      <span class="num" id="st-3">0</span>
+      <span class="lbl stars-lbl" data-stars="3"></span>
+    </div>
+  </section>
+
+  <div class="toolbar">
+    <select id="sort-select" class="sort-select" title="排序方式">
+      <option value="updated">最近更新</option>
+      <option value="created">最近收录</option>
+      <option value="star-desc">星级高→低</option>
+      <option value="star-asc">星级低→高</option>
+    </select>
+  </div>
+
+  <main id="list" class="list"></main>
+  <p id="empty" class="empty hidden">没有匹配的内容</p>
+
+  <footer>点击标题打开原文，点击星星改星级，点击备注/标签可编辑。</footer>
+
+  <script src="shared.js"></script>
+  <script src="manager.js"></script>
+</body>
+</html>
