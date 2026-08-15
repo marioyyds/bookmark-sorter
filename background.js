@@ -70,6 +70,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== 'ai-stream') return;
 
+  const controller = new AbortController();
+  let aborted = false;
+  port.onDisconnect.addListener(() => {
+    aborted = true;
+    try {
+      controller.abort();
+    } catch (e) {}
+  });
+
   port.onMessage.addListener(async (payload) => {
     try {
       const settings = await getAISettings();
@@ -97,6 +106,7 @@ chrome.runtime.onConnect.addListener((port) => {
           temperature: 0.3,
           stream: true,
         }),
+        signal: controller.signal,
       });
 
       if (!resp.ok) {
@@ -152,8 +162,9 @@ chrome.runtime.onConnect.addListener((port) => {
           }
         }
       }
-      port.postMessage({ type: 'end' });
+      if (!aborted) port.postMessage({ type: 'end' });
     } catch (e) {
+      if (aborted) return;
       port.postMessage({ type: 'error', error: e.message });
     }
   });

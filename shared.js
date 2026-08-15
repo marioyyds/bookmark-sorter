@@ -262,11 +262,53 @@ async function getAISettings() {
   return Object.assign({}, AI_SETTINGS_DEFAULTS, d[AI_SETTINGS_KEY] || {});
 }
 
+function tokenizeQuery(query) {
+  const raw = String(query || '').toLowerCase();
+  const segments = raw
+    .split(/[\s,，。;；:：!！?？、/\\()[\]{}<>"'`~#@$%^&*+=|]+/)
+    .filter((s) => s.length);
+  const tokens = [];
+  for (const seg of segments) {
+    if (seg.length <= 4) {
+      tokens.push(seg);
+    } else {
+      for (let i = 0; i < seg.length - 1; i++) {
+        tokens.push(seg.slice(i, i + 2));
+      }
+    }
+  }
+  return tokens;
+}
+
+function isKbOverviewQuery(q) {
+  const s = String(q || '').toLowerCase();
+  return /知识库/.test(s) && /有什么|有哪些|内容|都有|全部|列出|list|看看|查看|里面|总结|汇总|概览/.test(s);
+}
+
+function buildKbOverview(book, limit) {
+  const items = Object.values(book).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  const shown = items.slice(0, limit || 30);
+  const total = items.length;
+  const lines = shown.map((it, i) => {
+    const parts = [`[${i + 1}] 标题：${it.title || '未命名'}`];
+    parts.push(`类型：${typeInfo(it.type).name}`);
+    if (it.status) parts.push(`星级：${(STAR_LEVELS[it.status] || {}).name || it.status}`);
+    if (Array.isArray(it.tags) && it.tags.length) parts.push(`标签：${it.tags.join('、')}`);
+    if (it.note) parts.push(`内容：${String(it.note).slice(0, 120)}`);
+    return parts.join('｜');
+  });
+  return (
+    '用户个人知识库共 ' +
+    total +
+    ' 条记录' +
+    (total > shown.length ? '（以下仅列出最近 ' + shown.length + ' 条，其余未列出）' : '') +
+    '：\n' +
+    lines.join('\n')
+  );
+}
+
 function buildRagContext(book, query, limit) {
-  const terms = String(query || '')
-    .toLowerCase()
-    .split(/[\s,，。;；:：!！?？]+/)
-    .filter((t) => t.length >= 2);
+  const terms = tokenizeQuery(query);
 
   const scored = Object.values(book).map((it) => {
     const hay = (
@@ -321,18 +363,22 @@ function buildAiMessages(action, payload, settings, book) {
     const question = payload.question || text || '';
     let ctx = '';
     if (settings.ragEnabled) {
-      const relevant = buildRagContext(book, question || text, 5);
-      if (relevant.length) {
-        ctx =
-          '以下是从用户个人知识库中检索到的相关条目，请优先参考它们回答：\n' +
-          relevant
-            .map((it, i) => {
-              const parts = [`[${i + 1}] 标题：${it.title}`, `类型：${it.type}`];
-              if (it.note) parts.push('内容/备注：' + it.note);
-              if (it.url) parts.push('链接：' + it.url);
-              return parts.join('\n');
-            })
-            .join('\n\n');
+      if (isKbOverviewQuery(question || text)) {
+        ctx = buildKbOverview(book, 30);
+      } else {
+        const relevant = buildRagContext(book, question || text, 5);
+        if (relevant.length) {
+          ctx =
+            '以下是从用户个人知识库中检索到的相关条目，请优先参考它们回答：\n' +
+            relevant
+              .map((it, i) => {
+                const parts = [`[${i + 1}] 标题：${it.title}`, `类型：${it.type}`];
+                if (it.note) parts.push('内容/备注：' + it.note);
+                if (it.url) parts.push('链接：' + it.url);
+                return parts.join('\n');
+              })
+              .join('\n\n');
+        }
       }
     }
     return [
@@ -357,13 +403,17 @@ function buildAiMessages(action, payload, settings, book) {
     const history = Array.isArray(payload.history) ? payload.history.slice(-10) : [];
     let ctx = '';
     if (settings.ragEnabled) {
-      const relevant = buildRagContext(book, instruction || text, 5);
-      if (relevant.length) {
-        ctx =
-          '以下是从用户个人知识库中检索到的相关条目，可参考：\n' +
-          relevant
-            .map((it, i) => `${[i + 1]} 标题：${it.title}${it.note ? '｜内容：' + it.note : ''}`)
-            .join('\n');
+      if (isKbOverviewQuery(instruction || text)) {
+        ctx = buildKbOverview(book, 30);
+      } else {
+        const relevant = buildRagContext(book, instruction || text, 5);
+        if (relevant.length) {
+          ctx =
+            '以下是从用户个人知识库中检索到的相关条目，可参考：\n' +
+            relevant
+              .map((it, i) => `${[i + 1]} 标题：${it.title}${it.note ? '｜内容：' + it.note : ''}`)
+              .join('\n');
+        }
       }
     }
     const hasText = !!text;

@@ -16,6 +16,11 @@
   let panelTextEl = null;
   let fab = null;
   let conversation = [];
+  let stopBtn = null;
+  let streaming = false;
+  let pendingAcc = '';
+  let pendingAiMsg = null;
+  let pendingStarted = false;
   const CONV_KEY = 'kbConversation';
 
   // 提取页面正文，作为指令的上下文
@@ -170,6 +175,10 @@
     .p-foot button:hover { border-color: #4a90d9; color: #4a90d9; }
     .p-foot .spacer { flex: 1; }
     .p-foot .copy-btn { margin-left: auto; }
+    .p-foot .stop-btn { border-color: #e74c3c; color: #e74c3c; font-weight: 600; }
+    .p-foot .stop-btn:hover { border-color: #e74c3c; color: #fff; background: #e74c3c; }
+    .panel.dark .p-foot .stop-btn { border-color: #e74c3c; color: #e74c3c; }
+    .panel.dark .p-foot .stop-btn:hover { color: #fff; background: #e74c3c; }
     .cmd-box { display: flex; gap: 6px; padding: 8px 12px; border-top: 1px solid #e2e5ea; align-items: stretch; flex-shrink: 0; }
     .panel.dark .cmd-box { border-color: #3a3f46; }
     .cmd-input {
@@ -606,8 +615,14 @@
         setTimeout(() => (copyBtn.textContent = '复制'), 1200);
       });
     });
+    stopBtn = document.createElement('button');
+    stopBtn.className = 'stop-btn';
+    stopBtn.textContent = '■ 停止';
+    stopBtn.style.display = 'none';
+    stopBtn.addEventListener('click', interrupt);
     foot.appendChild(clearBtn);
     foot.appendChild(copyBtn);
+    foot.appendChild(stopBtn);
     panel.appendChild(foot);
 
     const resizeHandle = document.createElement('div');
@@ -642,6 +657,39 @@
       panel.style.top = top + 'px';
     }
 
+    function endStream() {
+      streaming = false;
+      if (stopBtn) stopBtn.style.display = 'none';
+      if (sendBtn) sendBtn.disabled = false;
+      pendingAiMsg = null;
+      pendingStarted = false;
+      pendingAcc = '';
+    }
+
+    function interrupt() {
+      if (!streaming) return;
+      const acc = pendingAcc;
+      closePort();
+      if (pendingAiMsg && pendingAiMsg.parentNode) {
+        if (acc) {
+          lastResponse = acc;
+          conversation.push({ role: 'assistant', content: acc });
+          saveConversation();
+          const note = document.createElement('div');
+          note.className = 'msg ai';
+          note.style.color = '#999';
+          note.textContent = '（已停止生成）';
+          pendingAiMsg.parentNode.appendChild(note);
+        } else {
+          pendingAiMsg.textContent = '（已停止）';
+          pendingAiMsg.style.color = '#999';
+        }
+      }
+      endStream();
+      fitPanelHeight();
+      panelBody.scrollTop = panelBody.scrollHeight;
+    }
+
     function run(instruction) {
       closePort();
       lastResponse = '';
@@ -657,22 +705,29 @@
       fitPanelHeight();
       panelBody.scrollTop = panelBody.scrollHeight;
 
-      let acc = '';
-      let started = false;
+      pendingAcc = '';
+      pendingAiMsg = aiMsg;
+      pendingStarted = false;
+      streaming = true;
+      if (stopBtn) stopBtn.style.display = '';
+      if (sendBtn) sendBtn.disabled = true;
+
       port = chrome.runtime.connect({ name: 'ai-stream' });
-      port.onMessage.addListener((resp) => {
+      const conn = port;
+      conn.onMessage.addListener((resp) => {
         if (resp.type === 'chunk') {
-          acc += resp.text;
-          if (!started) started = true;
-          aiMsg.innerHTML = renderMarkdown(acc);
+          pendingAcc += resp.text;
+          if (!pendingStarted) pendingStarted = true;
+          aiMsg.innerHTML = renderMarkdown(pendingAcc);
           fitPanelHeight();
           panelBody.scrollTop = panelBody.scrollHeight;
         } else if (resp.type === 'end') {
-          if (!started) aiMsg.textContent = '（无返回内容）';
-          lastResponse = acc || '';
+          if (!pendingStarted) aiMsg.textContent = '（无返回内容）';
+          lastResponse = pendingAcc || '';
           conversation.push({ role: 'assistant', content: lastResponse });
           saveConversation();
           fitPanelHeight();
+          endStream();
           closePort();
         } else if (resp.type === 'error') {
           aiMsg.textContent = resp.error;
@@ -686,13 +741,15 @@
             aiMsg.appendChild(document.createElement('br'));
             aiMsg.appendChild(go);
           }
+          endStream();
           closePort();
         }
       });
-      port.onDisconnect.addListener(() => {
-        closePort();
+      conn.onDisconnect.addListener(() => {
+        if (port === conn) port = null;
+        if (port === null && streaming) endStream();
       });
-      port.postMessage({
+      conn.postMessage({
         action: 'command',
         question: instruction,
         text: lastText,
@@ -702,14 +759,13 @@
     }
 
     function send() {
+      if (streaming) return;
       const cmd = cmdInput.value.trim();
       if (!cmd) return;
       run(cmd);
       cmdInput.value = '';
       cmdInput.style.height = 'auto';
       cmdInput.style.height = '34px';
-      sendBtn.disabled = true;
-      setTimeout(() => (sendBtn.disabled = false), 200);
       cmdInput.focus();
     }
 
@@ -754,7 +810,14 @@
   }
 
   function isCodeContext(el) {
-    return !!(el.closest && el.closest('pre, code, .ace_editor, .CodeMirror, .monaco-editor, .cm-editor, [class*=code], [class*=Code], [class*=editor], [class*=Editor]'));
+    if (!el) return false;
+    if (el.closest && el.closest('pre, code, .ace_editor, .CodeMirror, .monaco-editor, .cm-editor, [class*=code], [class*=Code], [class*=editor], [class*=Editor], [aria-label*=代码], [aria-label*=code], [aria-label*=Code], [aria-label*=editor], [aria-label*=Editor]')) return true;
+    if (el.tagName === 'TEXTAREA' && el.spellcheck === false) return true;
+    try {
+      const ff = (getComputedStyle(el).fontFamily || '').toLowerCase();
+      if (/mono|menlo|consolas|monospace|courier/i.test(ff)) return true;
+    } catch (e) {}
+    return false;
   }
 
   function textBeforeCaret(el) {
@@ -783,8 +846,7 @@
       const mirror = document.createElement('div');
       const props = [
         'fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'lineHeight',
-        'letterSpacing', 'wordSpacing', 'textIndent', 'textTransform',
-        'whiteSpace', 'wordWrap', 'wordBreak', 'overflowWrap',
+        'letterSpacing', 'wordSpacing', 'textIndent', 'textTransform', 'tabSize',
         'boxSizing', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
         'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth',
         'borderTopStyle', 'borderRightStyle', 'borderBottomStyle', 'borderLeftStyle',
@@ -798,8 +860,13 @@
       mirror.style.width = el.clientWidth + 'px';
       mirror.style.height = el.clientHeight + 'px';
       mirror.style.overflow = 'hidden';
-      mirror.style.whiteSpace = 'pre-wrap';
-      mirror.style.wordBreak = 'break-word';
+      const noWrap =
+        (el.tagName === 'TEXTAREA' && el.getAttribute('wrap') === 'off') ||
+        cs.whiteSpace === 'pre' ||
+        cs.whiteSpace === 'nowrap';
+      mirror.style.whiteSpace = noWrap ? 'pre' : 'pre-wrap';
+      mirror.style.overflowWrap = noWrap ? 'normal' : 'break-word';
+      mirror.style.wordBreak = noWrap ? 'normal' : 'break-word';
 
       const before = el.value.slice(0, el.selectionStart);
       mirror.textContent = before;
