@@ -65,6 +65,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     sendResponse({ ok: true });
     return false;
   }
+  if (msg && msg.type === 'openManager') {
+    const focusId = msg.focusId || '';
+    chrome.tabs.create({ url: chrome.runtime.getURL('manager.html') + (focusId ? '#focus=' + encodeURIComponent(focusId) : '') });
+    sendResponse({ ok: true });
+    return false;
+  }
 });
 
 chrome.runtime.onConnect.addListener((port) => {
@@ -76,7 +82,9 @@ chrome.runtime.onConnect.addListener((port) => {
     aborted = true;
     try {
       controller.abort();
-    } catch (e) {}
+    } catch (e) {
+      logError('Abort controller failed', e);
+    }
   });
 
   port.onMessage.addListener(async (payload) => {
@@ -91,6 +99,11 @@ chrome.runtime.onConnect.addListener((port) => {
       if (!messages) {
         port.postMessage({ type: 'error', error: '未知操作：' + payload.action });
         return;
+      }
+
+      // 发送引用来源元数据给前端（在流式响应开始前）
+      if (messages._citations && messages._citations.length) {
+        port.postMessage({ type: 'citations', citations: messages._citations });
       }
 
       const url = settings.baseUrl.replace(/\/+$/, '') + '/chat/completions';
@@ -143,7 +156,7 @@ chrome.runtime.onConnect.addListener((port) => {
               port.postMessage({ type: 'chunk', text: delta.content });
             }
           } catch (e) {
-            // 忽略无法解析的行
+            logError('Failed to parse SSE chunk', { data, error: e.message });
           }
         }
       }
@@ -158,7 +171,9 @@ chrome.runtime.onConnect.addListener((port) => {
               if (delta && delta.content) {
                 port.postMessage({ type: 'chunk', text: delta.content });
               }
-            } catch (e) {}
+            } catch (e) {
+              logError('Failed to parse final SSE chunk', { data, error: e.message });
+            }
           }
         }
       }

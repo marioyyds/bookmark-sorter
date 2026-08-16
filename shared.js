@@ -1,5 +1,14 @@
 const STORAGE_KEY = 'knowledgeBase';
 const LEGACY_STORAGE_KEY = 'wrongBook';
+const DATA_VERSION_KEY = 'knowledgeBaseDataVersion';
+const CURRENT_DATA_VERSION = 2;
+
+// 状态常量枚举，避免魔法数字
+const STATUS = {
+  GENERAL: 1, // 一般
+  IMPORTANT: 2, // 重点
+  FREQUENT: 3, // 高频
+};
 
 const PLATFORMS = [
   { id: 'leetcode', name: 'LeetCode', match: /leetcode\.cn|leetcode\.com/i },
@@ -18,10 +27,33 @@ const ITEM_TYPES = [
 ];
 
 const STAR_LEVELS = {
-  1: { name: '一般', color: '#f5b860' },
-  2: { name: '重点', color: '#f39c12' },
-  3: { name: '高频', color: '#e74c3c' },
+  [STATUS.GENERAL]: { name: '一般', color: '#f5b860' },
+  [STATUS.IMPORTANT]: { name: '重点', color: '#f39c12' },
+  [STATUS.FREQUENT]: { name: '高频', color: '#e74c3c' },
 };
+
+/**
+ * 防抖函数
+ * @param {Function} fn - 要执行的函数
+ * @param {number} delay - 延迟毫秒数
+ * @returns {Function} 防抖后的函数
+ */
+function debounce(fn, delay) {
+  let timer = null;
+  return function (...args) {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn.apply(this, args), delay);
+  };
+}
+
+/**
+ * 安全日志记录（避免空 catch 块）
+ * @param {string} context - 上下文描述
+ * @param {Error|*} error - 错误对象
+ */
+function logError(context, error) {
+  console.warn(`[BookmarkSorter] ${context}:`, error);
+}
 
 const OLD_STATUS_MIGRATION = {
   'to-review': 2,
@@ -86,9 +118,16 @@ function parseTags(str) {
 }
 
 async function getBook() {
-  let d = await chrome.storage.local.get([STORAGE_KEY, LEGACY_STORAGE_KEY]);
+  let d = await chrome.storage.local.get([STORAGE_KEY, LEGACY_STORAGE_KEY, DATA_VERSION_KEY]);
   let book = d[STORAGE_KEY];
+  const dataVersion = d[DATA_VERSION_KEY] || 0;
 
+  // 如果数据版本已是最新，直接返回（跳过迁移检查，提升性能）
+  if (book && dataVersion >= CURRENT_DATA_VERSION) {
+    return book;
+  }
+
+  // 首次迁移：从旧版存储格式迁移
   if (!book) {
     const legacy = d[LEGACY_STORAGE_KEY] || {};
     book = {};
@@ -100,11 +139,11 @@ async function getBook() {
       book[url] = it;
     }
     if (Object.keys(book).length) {
-      await setBook(book);
       await chrome.storage.local.remove(LEGACY_STORAGE_KEY);
     }
   }
 
+  // 数据结构规范化
   let changed = false;
   for (const k in book) {
     const it = book[k];
@@ -122,14 +161,17 @@ async function getBook() {
     }
     const s = it.status;
     if (typeof s === 'string') {
-      it.status = OLD_STATUS_MIGRATION[s] || 2;
+      it.status = OLD_STATUS_MIGRATION[s] || STATUS.IMPORTANT;
       changed = true;
-    } else if (s !== 1 && s !== 2 && s !== 3) {
-      it.status = 2;
+    } else if (s !== STATUS.GENERAL && s !== STATUS.IMPORTANT && s !== STATUS.FREQUENT) {
+      it.status = STATUS.IMPORTANT;
       changed = true;
     }
   }
-  if (changed) await setBook(book);
+
+  // 保存数据并标记版本
+  await setBook(book);
+  await chrome.storage.local.set({ [DATA_VERSION_KEY]: CURRENT_DATA_VERSION });
   return book;
 }
 
@@ -307,6 +349,13 @@ function buildKbOverview(book, limit) {
   );
 }
 
+/**
+ * 构建 RAG 上下文，返回匹配的条目数组
+ * @param {Object} book - 知识库数据
+ * @param {string} query - 查询文本
+ * @param {number} limit - 最大返回数量
+ * @returns {Array} 匹配的条目数组
+ */
 function buildRagContext(book, query, limit) {
   const terms = tokenizeQuery(query);
 
@@ -337,6 +386,24 @@ function buildRagContext(book, query, limit) {
     .map((x) => x.it);
 }
 
+/**
+ * 构建引用来源元数据，用于前端渲染引用卡片
+ * @param {Array} relevantItems - RAG 检索到的条目
+ * @param {boolean} isOverview - 是否为知识库概览查询
+ * @returns {Array|null} 引用元数据数组 [{index, id, title, type, url}]
+ */
+function buildCitations(relevantItems, isOverview) {
+  if (!relevantItems || !relevantItems.length) return null;
+  return relevantItems.map((it, i) => ({
+    index: i + 1,
+    id: it.id,
+    title: it.title || '未命名',
+    type: it.type || 'wrong',
+    url: it.url || '',
+    isOverview: !!isOverview,
+  }));
+}
+
 function buildAiMessages(action, payload, settings, book) {
   const text = payload.text || '';
 
@@ -362,17 +429,20 @@ function buildAiMessages(action, payload, settings, book) {
   if (action === 'ask') {
     const question = payload.question || text || '';
     let ctx = '';
+    let citations = null;
     if (settings.ragEnabled) {
       if (isKbOverviewQuery(question || text)) {
         ctx = buildKbOverview(book, 30);
+        citations = buildCitations(Object.values(book).slice(0, 30), true);
       } else {
         const relevant = buildRagContext(book, question || text, 5);
         if (relevant.length) {
+          citations = buildCitations(relevant, false);
           ctx =
             '以下是从用户个人知识库中检索到的相关条目，请优先参考它们回答：\n' +
             relevant
               .map((it, i) => {
-                const parts = [`[${i + 1}] 标题：${it.title}`, `类型：${it.type}`];
+                const parts = [`[${i + 1}] 标题：${it.title}`, `类型：${typeInfo(it.type).name}`];
                 if (it.note) parts.push('内容/备注：' + it.note);
                 if (it.url) parts.push('链接：' + it.url);
                 return parts.join('\n');
@@ -381,11 +451,11 @@ function buildAiMessages(action, payload, settings, book) {
         }
       }
     }
-    return [
+    const messages = [
       {
         role: 'system',
         content:
-          '你是用户的个人知识库助手。请用中文回答，可用 Markdown 排版。若提供了知识库上下文，请基于它回答并注明引用来源；若无相关知识，请明确说明并给出通用回答。',
+          '你是用户的个人知识库助手。请用中文回答，可用 Markdown 排版。若提供了知识库上下文，请基于它回答，并在引用具体条目时使用 [n] 格式标注来源编号（n 为条目编号）；若无相关知识，请明确说明并给出通用回答。',
       },
       {
         role: 'user',
@@ -396,22 +466,28 @@ function buildAiMessages(action, payload, settings, book) {
           (ctx ? '\n\n知识库上下文：\n' + ctx : ''),
       },
     ];
+    // 附加引用元数据到 messages 对象（非标准字段，供调用方使用）
+    messages._citations = citations;
+    return messages;
   }
   if (action === 'command') {
     const instruction = payload.question || payload.command || '';
     const page = payload.page || '';
     const history = Array.isArray(payload.history) ? payload.history.slice(-10) : [];
     let ctx = '';
+    let citations = null;
     if (settings.ragEnabled) {
       if (isKbOverviewQuery(instruction || text)) {
         ctx = buildKbOverview(book, 30);
+        citations = buildCitations(Object.values(book).slice(0, 30), true);
       } else {
         const relevant = buildRagContext(book, instruction || text, 5);
         if (relevant.length) {
+          citations = buildCitations(relevant, false);
           ctx =
-            '以下是从用户个人知识库中检索到的相关条目，可参考：\n' +
+            '以下是从用户个人知识库中检索到的相关条目，可参考（引用时请使用 [n] 格式标注来源编号）：\n' +
             relevant
-              .map((it, i) => `${[i + 1]} 标题：${it.title}${it.note ? '｜内容：' + it.note : ''}`)
+              .map((it, i) => `[${i + 1}] 标题：${it.title}｜类型：${typeInfo(it.type).name}${it.note ? '｜内容：' + it.note : ''}`)
               .join('\n');
         }
       }
@@ -436,6 +512,8 @@ function buildAiMessages(action, payload, settings, book) {
       }
     }
     messages.push({ role: 'user', content: userParts.join('\n\n') });
+    // 附加引用元数据到 messages 对象（非标准字段，供调用方使用）
+    messages._citations = citations;
     return messages;
   }
   if (action === 'complete') {

@@ -21,6 +21,7 @@
   let pendingAcc = '';
   let pendingAiMsg = null;
   let pendingStarted = false;
+  let currentCitations = null; // 当前回答的引用来源元数据
   const CONV_KEY = 'kbConversation';
 
   // 提取页面正文，作为指令的上下文
@@ -107,16 +108,15 @@
     .p-body.loading { color: #999; }
     .panel.dark .p-body.loading { color: #9aa0a8; }
     .p-body.error { color: #e74c3c; }
-    .msg { margin-bottom: 8px; max-width: 100%; }
+    .msg { margin-bottom: 14px; max-width: 100%; }
     .msg.user {
-      background: #4a90d9; color: #fff; border-radius: 12px 12px 4px 12px;
-      padding: 7px 12px; margin-left: 24px; white-space: pre-wrap;
+      background: linear-gradient(135deg, #4a90d9, #63a0e2); color: #fff;
+      border-radius: 12px 12px 4px 12px;
+      padding: 8px 14px; margin-left: auto; white-space: pre-wrap;
+      width: fit-content; max-width: 85%;
+      box-shadow: 0 2px 8px rgba(74,144,217,.22);
     }
-    .msg.ai {
-      background: var(--note-bg, #f2f4f7); border-radius: 12px 12px 12px 4px;
-      padding: 8px 12px; margin-right: 24px;
-    }
-    .panel.dark .msg.ai { background: #2a2e34; }
+    .msg.ai { background: transparent; padding: 0 2px; margin-right: 6px; }
     .msg.ai .typing { color: #999; }
     .panel.dark .msg.ai .typing { color: #9aa0a8; }
     .typing { display: inline-flex; gap: 4px; align-items: center; }
@@ -124,50 +124,69 @@
     .typing span:nth-child(2) { animation-delay: .15s; }
     .typing span:nth-child(3) { animation-delay: .3s; }
     @keyframes kb-bounce { 0%,60%,100% { transform: translateY(0); opacity: .4; } 30% { transform: translateY(-4px); opacity: 1; } }
-    .p-body h1, .p-body h2, .p-body h3, .p-body h4 { margin: 10px 0 6px; line-height: 1.3; }
-    .p-body h1 { font-size: 16px; } .p-body h2 { font-size: 15px; } .p-body h3 { font-size: 14px; }
-    .p-body p { margin: 6px 0; padding: 6px 10px; background: var(--note-bg, #f6f7f9); border-radius: 8px; }
-    .panel.dark .p-body p { background: #2a2e34; }
-    .msg.ai p:first-child { margin-top: 0; }
-    .msg.ai p:last-child { margin-bottom: 0; }
-    .p-body ul, .p-body ol { margin: 6px 0; padding-left: 20px; background: var(--note-bg, #f6f7f9); border-radius: 8px; padding-top: 6px; padding-bottom: 6px; }
-    .panel.dark .p-body ul, .panel.dark .p-body ol { background: #2a2e34; }
-    .p-body li { margin: 2px 0; }
-    .p-body code { background: #f0f2f5; border-radius: 4px; padding: 1px 5px; font-size: 12px; font-family: Consolas, monospace; }
-    .panel.dark .p-body code { background: #3a3f46; }
-    .code-wrap { position: relative; margin: 10px 0; border-radius: 10px; box-shadow: 0 3px 12px rgba(0,0,0,.12); overflow: hidden; }
-    .code-wrap pre { background: #f8f9fb; border-radius: 10px; padding: 14px 12px; overflow-x: auto; margin: 0; }
-    .panel.dark .code-wrap pre { background: #1f2328; }
-    .code-wrap pre code { background: none; padding: 0; }
+    .p-body h1, .p-body h2, .p-body h3, .p-body h4 { margin: 14px 0 8px; line-height: 1.4; font-weight: 700; }
+    .p-body h1 { font-size: 17px; } .p-body h2 { font-size: 15.5px; } .p-body h3 { font-size: 14.5px; } .p-body h4 { font-size: 13.5px; }
+    .msg.ai > :first-child { margin-top: 2px; }
+    .msg.ai > :last-child { margin-bottom: 2px; }
+    .p-body p { margin: 8px 0; padding: 0; background: none; border-radius: 0; }
+    .p-body ul, .p-body ol { margin: 8px 0; padding-left: 22px; background: none; border-radius: 0; padding-top: 2px; padding-bottom: 2px; }
+    .p-body li { margin: 4px 0; }
+    .p-body li::marker { color: #4a90d9; }
+    .panel.dark .p-body li::marker { color: #6aa5e0; }
+    .p-body code { background: rgba(74,144,217,.1); color: #3a7cc4; border-radius: 4px; padding: 1px 6px; font-size: 12px; font-family: Consolas, "Cascadia Code", monospace; }
+    .panel.dark .p-body code { background: rgba(110,168,254,.15); color: #9ecbff; }
+    .code-wrap { position: relative; margin: 10px 0; border-radius: 10px; background: #171a21; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,.18); }
+    .panel.dark .code-wrap { background: #14171d; border: 1px solid #2a2f38; }
+    .code-head { display: flex; align-items: center; justify-content: space-between; padding: 5px 12px; background: #232833; }
+    .panel.dark .code-head { background: #1d222b; }
+    .code-lang { font-size: 11px; color: #8b949e; letter-spacing: .5px; text-transform: uppercase; user-select: none; font-family: Consolas, monospace; }
+    .code-wrap pre { background: transparent; padding: 12px 14px; overflow-x: auto; margin: 0; }
+    .code-wrap pre code { background: none; padding: 0; color: #d6dce5; font-size: 12px; line-height: 1.7; font-family: Consolas, "Cascadia Code", monospace; }
     .code-copy {
-      position: absolute; top: 6px; right: 6px;
-      border: 1px solid var(--border, #d5d9e0); background: #fff; color: #888;
-      border-radius: 6px; padding: 1px 8px; font-size: 11px; cursor: pointer;
-      font-family: inherit; opacity: .7; transition: opacity .15s, color .15s;
-      line-height: 1.6;
+      border: none; background: none; color: #8b949e;
+      border-radius: 6px; padding: 2px 8px; font-size: 11px; cursor: pointer;
+      font-family: inherit; transition: color .15s, background .15s; line-height: 1.6;
     }
-    .panel.dark .code-copy { background: #3a3f46; border-color: #4a4f57; color: #aaa; }
-    .code-copy:hover { opacity: 1; color: #4a90d9; border-color: #4a90d9; }
-    .code-copy.copied { color: #27ae60; border-color: #27ae60; }
-    .tk-comment { color: #6a737d; font-style: italic; }
-    .tk-string { color: #032f62; }
-    .tk-number { color: #005cc5; }
-    .tk-keyword { color: #d73a49; font-weight: 600; }
-    .tk-type { color: #6f42c1; }
-    .tk-fn { color: #6f42c1; }
-    .panel.dark .tk-comment { color: #8b949e; }
-    .panel.dark .tk-string { color: #a5d6ff; }
-    .panel.dark .tk-number { color: #79c0ff; }
-    .panel.dark .tk-keyword { color: #ff7b72; }
-    .panel.dark .tk-type { color: #d2a8ff; }
-    .panel.dark .tk-fn { color: #d2a8ff; }
+    .code-copy:hover { color: #fff; background: rgba(255,255,255,.08); }
+    .code-copy.copied { color: #4ade80; }
+    .tk-comment { color: #8b949e; font-style: italic; }
+    .tk-string { color: #a5d6ff; }
+    .tk-number { color: #79c0ff; }
+    .tk-keyword { color: #ff7b72; font-weight: 600; }
+    .tk-type { color: #d2a8ff; }
+    .tk-fn { color: #d2a8ff; }
     .p-body blockquote {
       background: var(--note-bg, #f2f4f7); border-left: 3px solid #4a90d9;
-      padding: 8px 12px; color: #666; margin: 8px 0; border-radius: 0 8px 8px 0;
+      padding: 8px 12px; color: #666; margin: 10px 0; border-radius: 0 8px 8px 0;
     }
     .panel.dark .p-body blockquote { background: #2a2e34; color: #b8bec6; }
-    .p-body a { color: #4a90d9; }
+    .p-body a { color: #4a90d9; text-decoration: none; }
+    .p-body a:hover { text-decoration: underline; }
     .p-body strong { font-weight: 700; }
+    .p-body hr { border: none; border-top: 1px solid var(--border, #e2e5ea); margin: 14px 0; }
+    .panel.dark .p-body hr { border-color: #3a3f46; }
+    .md-table-wrap { margin: 10px 0; overflow-x: auto; border: 1px solid var(--border, #d5d9e0); border-radius: 8px; }
+    .p-body table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+    .p-body th, .p-body td { padding: 6px 12px; border-bottom: 1px solid var(--border, #e2e5ea); text-align: left; vertical-align: top; }
+    .p-body th { background: #f2f4f7; font-weight: 600; }
+    .p-body tbody tr:nth-child(even) { background: rgba(0,0,0,.025); }
+    .p-body tr:last-child td { border-bottom: none; }
+    .panel.dark .md-table-wrap { border-color: #3a3f46; }
+    .panel.dark .p-body th { background: #2a2e34; }
+    .panel.dark .p-body th, .panel.dark .p-body td { border-color: #3a3f46; }
+    .panel.dark .p-body tbody tr:nth-child(even) { background: rgba(255,255,255,.03); }
+    .stream-cursor { display: inline-block; width: 7px; height: 13px; margin-left: 3px; vertical-align: -2px; border-radius: 1.5px; background: #4a90d9; animation: kb-cursor .9s steps(2, start) infinite; }
+    @keyframes kb-cursor { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+    .msg-actions { display: flex; gap: 2px; margin-top: 6px; opacity: 0; transition: opacity .15s; }
+    .msg.ai:hover .msg-actions, .msg-actions:hover { opacity: 1; }
+    .msg-actions button {
+      border: none; background: none; color: #98a0aa; font-size: 11.5px; cursor: pointer;
+      padding: 2px 8px; border-radius: 6px; font-family: inherit;
+      display: inline-flex; align-items: center; gap: 4px; transition: all .15s;
+    }
+    .msg-actions button:hover { background: rgba(0,0,0,.06); color: #4a90d9; }
+    .panel.dark .msg-actions button:hover { background: rgba(255,255,255,.08); color: #6aa5e0; }
+    .stopped-note { margin-top: 6px; font-size: 11.5px; color: #98a0aa; user-select: none; }
     .p-foot { display: flex; gap: 8px; padding: 8px 12px; border-top: 1px solid #e2e5ea; }
     .panel.dark .p-foot { border-color: #3a3f46; }
     .p-foot button { border: 1px solid #e2e5ea; background: #fff; color: #555; border-radius: 8px; padding: 5px 12px; font-size: 12px; cursor: pointer; transition: all .15s; }
@@ -215,6 +234,25 @@
     .fab.hidden { display: none; }
     .fab.thinking { animation: fab-pulse 1.2s ease-in-out infinite; }
     @keyframes fab-pulse { 0%,100% { box-shadow: 0 4px 16px rgba(74,144,217,.4); } 50% { box-shadow: 0 4px 24px rgba(74,144,217,.75); } }
+    .cite-badge {
+      display: inline-flex; align-items: center; gap: 3px;
+      background: #eaf3fc; color: #4a90d9; border: 1px solid #b8d4f0;
+      border-radius: 10px; padding: 0 7px; margin: 0 2px;
+      font-size: 11px; line-height: 1.7; cursor: pointer; user-select: none;
+      vertical-align: baseline; transition: all .15s; font-family: inherit;
+      max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .cite-badge:hover { background: #4a90d9; color: #fff; border-color: #4a90d9; }
+    .cite-badge .cite-idx { font-weight: 700; flex-shrink: 0; }
+    .panel.dark .cite-badge { background: #2b3644; border-color: #3d5570; color: #7db4e8; }
+    .panel.dark .cite-badge:hover { background: #4a90d9; border-color: #4a90d9; color: #fff; }
+    .cite-sources {
+      margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border, #d5d9e0);
+      display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+    }
+    .cite-sources .cite-label { font-size: 11px; color: #999; margin-right: 2px; }
+    .panel.dark .cite-sources { border-color: #3a3f46; }
+    .panel.dark .cite-sources .cite-label { color: #8b949e; }
   `;
 
   // ---- 自动补全状态 ----
@@ -389,13 +427,22 @@
     return tokens.join('');
   }
 
+  // AI 回复底部操作栏（元宝风格：复制等）
+  function msgActionsHtml() {
+    return '<div class="msg-actions"><button class="act-copy" title="复制回答内容">⧉ 复制</button></div>';
+  }
+
   // ---- Markdown 渲染 ----
-  function renderMarkdown(md) {
+  // citations：可选，传入引用元数据数组后，[n] 会渲染为可点击的引用徽章
+  // streaming：是否处于流式输出中（为 true 时末尾追加闪烁光标）
+  function renderMarkdown(md, citations, streaming) {
     const lines = md.split('\n');
     let html = '';
     let inCode = false;
     let codeBuf = [];
+    let codeLang = '';
     let listType = null;
+    let tableBuf = null;
 
     const escInline = (s) =>
       s
@@ -403,12 +450,28 @@
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
 
+    const escAttr = (s) =>
+      String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+
     const inline = (s) => {
       let r = escInline(s);
       r = r.replace(/`([^`]+)`/g, '<code>$1</code>');
       r = r.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
       r = r.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '<em>$1</em>');
       r = r.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+      // 将 [n] 渲染为可点击的引用徽章（仅当存在引用元数据时）
+      if (citations && citations.length) {
+        r = r.replace(/\[(\d{1,2})\]/g, (match, num) => {
+          const idx = parseInt(num, 10);
+          const c = citations.find((x) => x.index === idx);
+          if (!c) return match;
+          const short = c.title.length > 16 ? c.title.slice(0, 16) + '…' : c.title;
+          return (
+            '<button class="cite-badge" data-cite-id="' + escAttr(c.id) + '" title="在知识库中查看：' + escAttr(c.title) + '">' +
+            '<span class="cite-idx">[' + idx + ']</span>' + escAttr(short) + '</button>'
+          );
+        });
+      }
       return r;
     };
 
@@ -419,16 +482,43 @@
       }
     };
 
-    for (const raw of lines) {
-      const line = raw.replace(/\r$/, '');
+    const isTableSep = (l) => /^\s*\|?[\s:\-|]+\|?\s*$/.test(l) && l.includes('-') && l.includes('|');
+    const parseRow = (r) => {
+      let t = r.trim();
+      if (t.startsWith('|')) t = t.slice(1);
+      if (t.endsWith('|')) t = t.slice(0, -1);
+      return t.split('|').map((c) => c.trim());
+    };
+    const flushTable = () => {
+      if (!tableBuf) return;
+      const head = parseRow(tableBuf[0]);
+      const rows = tableBuf.slice(2);
+      html +=
+        '<div class="md-table-wrap"><table><thead><tr>' +
+        head.map((c) => '<th>' + inline(c) + '</th>').join('') +
+        '</tr></thead><tbody>' +
+        rows.map((r) => '<tr>' + parseRow(r).map((c) => '<td>' + inline(c) + '</td>').join('') + '</tr>').join('') +
+        '</tbody></table></div>';
+      tableBuf = null;
+    };
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].replace(/\r$/, '');
       if (line.trim().startsWith('```')) {
         if (inCode) {
-          html += '<div class="code-wrap"><button class="code-copy">复制</button><pre><code>' + highlightCode(codeBuf.join('\n')) + '</code></pre></div>';
+          html +=
+            '<div class="code-wrap"><div class="code-head"><span class="code-lang">' +
+            (codeLang ? escAttr(codeLang) : 'code') +
+            '</span><button class="code-copy">复制</button></div><pre><code>' +
+            highlightCode(codeBuf.join('\n')) + '</code></pre></div>';
           codeBuf = [];
           inCode = false;
+          codeLang = '';
         } else {
           flushList();
+          flushTable();
           inCode = true;
+          codeLang = line.trim().slice(3).trim();
         }
         continue;
       }
@@ -436,15 +526,37 @@
         codeBuf.push(line);
         continue;
       }
+      // 表格：当前行含 | 且下一行是分隔行时开始收集
+      if (tableBuf) {
+        if (line.trim() !== '' && line.includes('|')) {
+          tableBuf.push(line);
+          continue;
+        }
+        flushTable();
+      } else if (line.includes('|') && i + 1 < lines.length && isTableSep(lines[i + 1])) {
+        flushList();
+        tableBuf = [line, lines[i + 1]];
+        i++;
+        continue;
+      }
+      // 分割线
+      if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
+        flushList();
+        flushTable();
+        html += '<hr>';
+        continue;
+      }
       const mH = line.match(/^(#{1,4})\s+(.*)/);
       if (mH) {
         flushList();
+        flushTable();
         const lv = mH[1].length;
         html += '<h' + lv + '>' + inline(mH[2]) + '</h' + lv + '>';
         continue;
       }
       const mUl = line.match(/^\s*[-*+]\s+(.*)/);
       if (mUl) {
+        flushTable();
         if (listType !== 'ul') {
           flushList();
           html += '<ul>';
@@ -455,6 +567,7 @@
       }
       const mOl = line.match(/^\s*\d+[.)]\s+(.*)/);
       if (mOl) {
+        flushTable();
         if (listType !== 'ol') {
           flushList();
           html += '<ol>';
@@ -466,16 +579,34 @@
       const mBq = line.match(/^\s*>\s?(.*)/);
       if (mBq) {
         flushList();
-        html += '<blockquote>' + inline(mBq[1]) + '</blockquote>';
+        flushTable();
+        // 合并连续的引用行
+        const buf = [mBq[1]];
+        while (i + 1 < lines.length) {
+          const m2 = lines[i + 1].replace(/\r$/, '').match(/^\s*>\s?(.*)/);
+          if (!m2) break;
+          buf.push(m2[1]);
+          i++;
+        }
+        html += '<blockquote>' + buf.map(inline).join('<br>') + '</blockquote>';
         continue;
       }
       flushList();
+      flushTable();
       if (line.trim() === '') {
         continue;
       }
       html += '<p>' + inline(line) + '</p>';
     }
     flushList();
+    flushTable();
+    if (streaming) {
+      if (html.endsWith('</p>')) {
+        html = html.slice(0, -4) + '<span class="stream-cursor"></span></p>';
+      } else {
+        html += '<p><span class="stream-cursor"></span></p>';
+      }
+    }
     return html || '<p>（无内容）</p>';
   }
 
@@ -508,15 +639,40 @@
       panelBody.innerHTML = '<div class="msg ai">' + (lastText ? '输入指令，AI 将基于选中文本执行。' : '输入指令，AI 将直接执行（可基于知识库）。') + '</div>';
       return;
     }
+    // 渲染引用来源区域
+    const citeSourcesHtml = (cites) => {
+      if (!cites || !cites.length) return '';
+      return (
+        '<div class="cite-sources"><span class="cite-label">参考来源：</span>' +
+        cites
+          .map(
+            (c) =>
+              '<button class="cite-badge" data-cite-id="' + escAttr(c.id) + '" title="在知识库中查看：' + escAttr(c.title) + '">' +
+              '<span class="cite-idx">[' + c.index + ']</span>' + escAttr(c.title.length > 18 ? c.title.slice(0, 18) + '…' : c.title) + '</button>'
+          )
+          .join('') +
+        '</div>'
+      );
+    };
+    const escAttr = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+
     panelBody.className = 'p-body';
     panelBody.innerHTML = conversation
       .map((m) => {
         if (m.role === 'user') {
           return '<div class="msg user">' + escHtml(m.content) + '</div>';
         }
-        return '<div class="msg ai">' + renderMarkdown(m.content || '') + '</div>';
+        return '<div class="msg ai">' + renderMarkdown(m.content || '', m.citations) + citeSourcesHtml(m.citations) + (m.content ? msgActionsHtml() : '') + '</div>';
       })
       .join('');
+    // 关联原始文本，供操作栏复制使用
+    const aiEls = panelBody.querySelectorAll('.msg.ai');
+    let aiIdx = 0;
+    for (const m of conversation) {
+      if (m.role === 'user') continue;
+      if (aiEls[aiIdx]) aiEls[aiIdx]._raw = m.content || '';
+      aiIdx++;
+    }
   }
 
   function escHtml(s) {
@@ -562,18 +718,41 @@
     panelBody = document.createElement('div');
     panelBody.className = 'p-body';
     panelBody.addEventListener('click', (e) => {
+      const actBtn = e.target.closest('.act-copy');
+      if (actBtn) {
+        const msgEl = actBtn.closest('.msg');
+        const raw = msgEl && msgEl._raw;
+        if (raw) {
+          navigator.clipboard.writeText(raw).then(() => {
+            actBtn.textContent = '✓ 已复制';
+            setTimeout(() => (actBtn.textContent = '⧉ 复制'), 1200);
+          });
+        }
+        return;
+      }
       const btn = e.target.closest('.code-copy');
-      if (!btn) return;
-      const codeEl = btn.parentElement && btn.parentElement.querySelector('code');
-      if (!codeEl) return;
-      navigator.clipboard.writeText(codeEl.textContent || '').then(() => {
-        btn.textContent = '已复制';
-        btn.classList.add('copied');
-        setTimeout(() => {
-          btn.textContent = '复制';
-          btn.classList.remove('copied');
-        }, 1200);
-      });
+      if (btn) {
+        const wrap = btn.closest('.code-wrap');
+        const codeEl = wrap && wrap.querySelector('code');
+        if (!codeEl) return;
+        navigator.clipboard.writeText(codeEl.textContent || '').then(() => {
+          btn.textContent = '已复制';
+          btn.classList.add('copied');
+          setTimeout(() => {
+            btn.textContent = '复制';
+            btn.classList.remove('copied');
+          }, 1200);
+        });
+        return;
+      }
+      // 引用徽章点击：打开知识库管理器并定位到条目
+      const cite = e.target.closest('.cite-badge');
+      if (cite) {
+        const id = cite.getAttribute('data-cite-id');
+        if (id) {
+          chrome.runtime.sendMessage({ type: 'openManager', focusId: id });
+        }
+      }
     });
     panel.appendChild(panelBody);
 
@@ -670,17 +849,19 @@
       if (!streaming) return;
       const acc = pendingAcc;
       closePort();
-      if (pendingAiMsg && pendingAiMsg.parentNode) {
-        if (acc) {
-          lastResponse = acc;
-          conversation.push({ role: 'assistant', content: acc });
-          saveConversation();
-          const note = document.createElement('div');
-          note.className = 'msg ai';
-          note.style.color = '#999';
-          note.textContent = '（已停止生成）';
-          pendingAiMsg.parentNode.appendChild(note);
-        } else {
+        if (pendingAiMsg && pendingAiMsg.parentNode) {
+          if (acc) {
+            lastResponse = acc;
+            pendingAiMsg.innerHTML = renderMarkdown(acc, currentCitations, false);
+            pendingAiMsg._raw = acc;
+            conversation.push({ role: 'assistant', content: acc });
+            saveConversation();
+            const note = document.createElement('div');
+            note.className = 'stopped-note';
+            note.textContent = '· 已停止生成';
+            pendingAiMsg.appendChild(note);
+            pendingAiMsg.insertAdjacentHTML('beforeend', msgActionsHtml());
+          } else {
           pendingAiMsg.textContent = '（已停止）';
           pendingAiMsg.style.color = '#999';
         }
@@ -715,18 +896,45 @@
       port = chrome.runtime.connect({ name: 'ai-stream' });
       const conn = port;
       conn.onMessage.addListener((resp) => {
-        if (resp.type === 'chunk') {
+        if (resp.type === 'citations') {
+          currentCitations = resp.citations || null;
+        } else if (resp.type === 'chunk') {
           pendingAcc += resp.text;
           if (!pendingStarted) pendingStarted = true;
-          aiMsg.innerHTML = renderMarkdown(pendingAcc);
+          aiMsg.innerHTML = renderMarkdown(pendingAcc, currentCitations, true);
+          aiMsg._raw = pendingAcc;
           fitPanelHeight();
           panelBody.scrollTop = panelBody.scrollHeight;
         } else if (resp.type === 'end') {
-          if (!pendingStarted) aiMsg.textContent = '（无返回内容）';
           lastResponse = pendingAcc || '';
-          conversation.push({ role: 'assistant', content: lastResponse });
+          if (!pendingStarted) {
+            aiMsg.textContent = '（无返回内容）';
+          } else {
+            aiMsg.innerHTML = renderMarkdown(lastResponse, currentCitations, false);
+            aiMsg._raw = lastResponse;
+          }
+          // 附加引用来源区域
+          if (currentCitations && currentCitations.length) {
+            const srcWrap = document.createElement('div');
+            srcWrap.className = 'cite-sources';
+            srcWrap.innerHTML =
+              '<span class="cite-label">参考来源：</span>' +
+              currentCitations
+                .map((c) => {
+                  const t = c.title.length > 18 ? c.title.slice(0, 18) + '…' : c.title;
+                  const idAttr = String(c.id).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+                  const tAttr = String(t).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+                  const titleAttr = String(c.title).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+                  return '<button class="cite-badge" data-cite-id="' + idAttr + '" title="在知识库中查看：' + titleAttr + '"><span class="cite-idx">[' + c.index + ']</span>' + tAttr + '</button>';
+                })
+                .join('');
+            aiMsg.appendChild(srcWrap);
+          }
+          if (lastResponse) aiMsg.insertAdjacentHTML('beforeend', msgActionsHtml());
+          conversation.push({ role: 'assistant', content: lastResponse, citations: currentCitations });
           saveConversation();
           fitPanelHeight();
+          currentCitations = null;
           endStream();
           closePort();
         } else if (resp.type === 'error') {

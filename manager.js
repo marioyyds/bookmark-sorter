@@ -63,6 +63,7 @@ function filtered() {
   if (currentStar !== 'all') {
     items = items.filter((i) => String(i.status) === currentStar);
   }
+  // 使用防抖搜索已在事件绑定处处理
   const q = $('search').value.trim().toLowerCase();
   if (q) {
     items = items.filter((i) =>
@@ -145,7 +146,7 @@ function render() {
 function renderStats() {
   const all = Object.values(bookCache);
   $('st-total').textContent = all.length;
-  [1, 2, 3].forEach((s) => {
+  [STATUS.GENERAL, STATUS.IMPORTANT, STATUS.FREQUENT].forEach((s) => {
     $('st-' + s).textContent = all.filter((i) => Number(i.status) === s).length;
   });
   document.querySelectorAll('.stars-lbl').forEach((el) => {
@@ -169,7 +170,7 @@ async function createNote() {
     url: '',
     platform: '',
     platformName: '',
-    status: 2,
+    status: STATUS.IMPORTANT,
     note: '',
     tags: [],
     createdAt: Date.now(),
@@ -271,7 +272,8 @@ document.querySelectorAll('.stat-card').forEach((el) => {
   });
 });
 
-$('search').addEventListener('input', render);
+// 搜索输入添加防抖，避免频繁渲染
+$('search').addEventListener('input', debounce(render, 200));
 
 $('sort-select').addEventListener('change', (e) => {
   sortBy = e.target.value;
@@ -384,33 +386,60 @@ $('import-btn').addEventListener('click', () => {
   $('import-file').click();
 });
 
+/**
+ * 验证导入的数据项是否有效
+ * @param {*} item - 待验证的数据项
+ * @returns {boolean} 是否有效
+ */
+function isValidImportItem(item) {
+  if (!item || typeof item !== 'object') return false;
+  if (typeof item.title !== 'string' || !item.title.trim()) return false;
+  // 验证 type 是否合法
+  const validTypes = ITEM_TYPES.map((t) => t.id);
+  if (item.type && !validTypes.includes(item.type)) return false;
+  // 验证 status 是否合法
+  if (item.status !== undefined && ![STATUS.GENERAL, STATUS.IMPORTANT, STATUS.FREQUENT].includes(Number(item.status))) {
+    return false;
+  }
+  // 验证 tags 是否为数组
+  if (item.tags && !Array.isArray(item.tags)) return false;
+  // 验证 url 是否为字符串
+  if (item.url && typeof item.url !== 'string') return false;
+  return true;
+}
+
 $('import-file').addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (!file) return;
   try {
     const text = await file.text();
     const data = JSON.parse(text);
-    if (typeof data !== 'object' || data === null) {
-      toast('无效的 JSON 格式');
+    if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+      toast('无效的 JSON 格式：应为对象');
       return;
     }
 
     let count = 0;
+    let skipped = 0;
     for (const [id, item] of Object.entries(data)) {
-      if (item && item.title) {
+      if (isValidImportItem(item)) {
         if (bookCache[id]) {
           bookCache[id] = { ...bookCache[id], ...item, id, updatedAt: Date.now() };
         } else {
           bookCache[id] = { ...item, id, createdAt: item.createdAt || Date.now(), updatedAt: Date.now() };
         }
         count++;
+      } else {
+        skipped++;
+        logError('Skipped invalid import item', { id, item });
       }
     }
     await persist();
     render();
-    toast('已导入 ' + count + ' 项');
+    toast(skipped > 0 ? `已导入 ${count} 项，跳过 ${skipped} 项无效数据` : `已导入 ${count} 项`);
   } catch (err) {
     toast('导入失败：' + err.message);
+    logError('Import failed', err);
   }
   e.target.value = '';
 });
@@ -427,6 +456,16 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault();
     $('search').focus();
   }
+  // Ctrl+A 全选当前筛选结果
+  if ((e.ctrlKey || e.metaKey) && e.key === 'a' && document.activeElement.tagName !== 'INPUT') {
+    e.preventDefault();
+    filtered().forEach((it) => selectedIds.add(it.id));
+    render();
+  }
+  // Delete 键批量删除已选项
+  if (e.key === 'Delete' && selectedIds.size > 0 && document.activeElement.tagName !== 'INPUT') {
+    bulkDelete();
+  }
   if (e.key === 'Escape') {
     if (selectedIds.size > 0) {
       selectedIds.clear();
@@ -435,7 +474,35 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+// ---- 引用来源定位高亮 ----
+// URL 形如 manager.html#focus=<id>：重置筛选、滚动到条目并高亮闪烁
+function focusItemFromHash() {
+  const m = location.hash.match(/#focus=([^&]+)/);
+  if (!m) return;
+  const id = decodeURIComponent(m[1]);
+  if (!bookCache[id]) {
+    toast('未找到该条目（可能已被删除）');
+    return;
+  }
+  // 重置筛选条件，确保目标条目可见
+  currentType = 'all';
+  currentTag = 'all';
+  currentStar = 'all';
+  $('search').value = '';
+  editingNoteId = null;
+  render();
+
+  const el = document.querySelector('.item[data-id="' + CSS.escape(id) + '"]');
+  if (!el) return;
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  el.classList.add('flash-highlight');
+  setTimeout(() => el.classList.remove('flash-highlight'), 2600);
+  // 清理 hash，避免刷新后重复触发
+  if (history.replaceState) history.replaceState(null, '', location.pathname + location.search);
+}
+
 (async function init() {
   await loadCache();
   render();
+  focusItemFromHash();
 })();

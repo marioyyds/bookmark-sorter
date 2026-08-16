@@ -4,7 +4,7 @@ let currentUrl = null;
 let currentTitle = null;
 let platform = null;
 let selectedType = 'wrong';
-let selectedStatus = 2;
+let selectedStatus = STATUS.IMPORTANT;
 let currentFilter = 'all';
 let sortBy = 'updated';
 
@@ -183,7 +183,8 @@ $('list').addEventListener('click', async (e) => {
   const starCell = e.target.closest('.star-cell[data-star]');
   if (starCell) {
     const a = Number(starCell.dataset.star);
-    if (bookCache[id] && a >= 1 && a <= 3) {
+    const validStatuses = [STATUS.GENERAL, STATUS.IMPORTANT, STATUS.FREQUENT];
+    if (bookCache[id] && validStatuses.includes(a)) {
       bookCache[id].status = a;
       bookCache[id].updatedAt = Date.now();
       await persist();
