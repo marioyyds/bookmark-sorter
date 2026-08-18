@@ -240,3 +240,61 @@ header .sub {
 .status.ok {
   color: #27ae60;
 }
+
+.mcp-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0 10px;
+}
+
+.mcp-empty {
+  font-size: 12px;
+  color: var(--text-sub);
+  margin: 4px 0;
+}
+
+.mcp-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.mcp-row input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  font-size: 12px;
+  font-family: inherit;
+  background: var(--bg);
+  color: var(--text);
+  outline: none;
+}
+
+.mcp-row input:focus {
+  border-color: var(--primary);
+}
+
+.mcp-row .mcp-id { flex: 0 0 110px; }
+.mcp-row .mcp-url { flex: 2; }
+.mcp-row .mcp-token { flex: 1.4; }
+
+.ghost-btn {
+  align-self: flex-start;
+  border: 1px dashed var(--border);
+  background: none;
+  color: var(--primary);
+  border-radius: 9px;
+  padding: 7px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.ghost-btn:hover {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}

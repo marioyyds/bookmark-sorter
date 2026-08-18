@@ -287,6 +287,38 @@ function platformColor(id) {
   return id === 'other' ? '#95a5a6' : '#4a90d9';
 }
 
+/**
+ * 通用 toast 提示（供 popup / manager 复用）
+ * @param {string} msg - 提示文本
+ * @param {Object} [opts] - 可选配置
+ * @param {Function} [opts.undoFn] - 撤销回调，提供时显示撤销按钮
+ * @param {number} [opts.duration=2000] - 显示时长（毫秒）
+ */
+let _toastTimer = null;
+function showToast(msg, opts) {
+  const o = opts || {};
+  let el = document.getElementById('toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'toast';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  if (o.undoFn) {
+    const btn = document.createElement('button');
+    btn.textContent = '撤销';
+    btn.addEventListener('click', () => {
+      o.undoFn();
+      el.classList.remove('show');
+    });
+    el.textContent = msg + ' ';
+    el.appendChild(btn);
+  }
+  el.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.remove('show'), o.duration || 2000);
+}
+
 const AI_SETTINGS_KEY = 'aiSettings';
 
 const AI_SETTINGS_DEFAULTS = {
@@ -297,6 +329,7 @@ const AI_SETTINGS_DEFAULTS = {
   targetLang: '中文',
   autocomplete: true,
   pageContext: true,
+  mcpServers: [],
 };
 
 async function getAISettings() {
@@ -351,6 +384,7 @@ function buildKbOverview(book, limit) {
 
 /**
  * 构建 RAG 上下文，返回匹配的条目数组
+ * 采用字段加权评分：标题权重最高，标签次之，备注最低，提升检索相关性
  * @param {Object} book - 知识库数据
  * @param {string} query - 查询文本
  * @param {number} limit - 最大返回数量
@@ -358,24 +392,38 @@ function buildKbOverview(book, limit) {
  */
 function buildRagContext(book, query, limit) {
   const terms = tokenizeQuery(query);
+  if (!terms.length) return [];
+
+  // 字段权重：标题最重要，标签次之，备注与类型较低
+  const WEIGHTS = { title: 3, tags: 2, note: 1, type: 0.5, platform: 0.5 };
 
   const scored = Object.values(book).map((it) => {
-    const hay = (
-      (it.title || '') +
-      ' ' +
-      (it.note || '') +
-      ' ' +
-      (it.tags || []).join(' ') +
-      ' ' +
-      (it.type || '') +
-      ' ' +
-      (it.platformName || '')
-    ).toLowerCase();
+    const titleLow = (it.title || '').toLowerCase();
+    const noteLow = (it.note || '').toLowerCase();
+    const tagsLow = (it.tags || []).join(' ').toLowerCase();
+    const typeLow = (it.type || '').toLowerCase();
+    const platformLow = (it.platformName || '').toLowerCase();
 
     let score = 0;
+    const matched = new Set();
     for (const t of terms) {
-      if (hay.includes(t)) score++;
+      if (titleLow.includes(t)) {
+        score += WEIGHTS.title;
+        matched.add(t);
+      }
+      if (tagsLow.includes(t)) {
+        score += WEIGHTS.tags;
+        matched.add(t);
+      }
+      if (noteLow.includes(t)) {
+        score += WEIGHTS.note;
+        matched.add(t);
+      }
+      if (typeLow.includes(t)) score += WEIGHTS.type;
+      if (platformLow.includes(t)) score += WEIGHTS.platform;
     }
+    // 覆盖度奖励：命中的不同查询词越多，相关性越高
+    if (matched.size > 1) score += matched.size * 0.5;
     return { it, score };
   });
 

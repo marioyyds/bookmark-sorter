@@ -20,6 +20,7 @@
   let streaming = false;
   let pendingAcc = '';
   let pendingAiMsg = null;
+  let pendingContentEl = null;
   let pendingStarted = false;
   let currentCitations = null; // 当前回答的引用来源元数据
   const CONV_KEY = 'kbConversation';
@@ -222,18 +223,24 @@
     }
     .fab {
       position: fixed; right: 16px; top: 38%; z-index: 2147483646;
-      width: 48px; height: 48px; border-radius: 50%;
-      background: linear-gradient(135deg, #4a90d9, #6aa5e0);
+      width: 52px; height: 52px; border: 1px solid rgba(255,255,255,.45); border-radius: 50%;
+      background: linear-gradient(145deg, #5ba0e5 0%, #3d7fc4 100%);
       color: #fff; display: flex; align-items: center; justify-content: center;
-      font-size: 15px; font-weight: 700; cursor: pointer;
-      box-shadow: 0 4px 16px rgba(74,144,217,.4);
-      transition: transform .15s, box-shadow .15s;
+      font-size: 14px; font-weight: 700; letter-spacing: .4px; cursor: pointer;
+      box-shadow: 0 8px 22px rgba(45,105,165,.36), inset 0 1px 1px rgba(255,255,255,.35);
+      transition: transform .18s ease, box-shadow .18s ease, filter .18s ease;
       user-select: none;
     }
-    .fab:hover { transform: scale(1.08); box-shadow: 0 6px 20px rgba(74,144,217,.5); }
+    .fab::before { content: ''; position: absolute; inset: 5px; border: 1px solid rgba(255,255,255,.2); border-radius: 50%; pointer-events: none; }
+    .fab::after { content: ''; position: absolute; right: -2px; bottom: 2px; width: 10px; height: 10px; border-radius: 50%; background: #52d38a; border: 2px solid #fff; }
+    .fab:hover { transform: translateY(-2px) scale(1.06); filter: saturate(1.08); box-shadow: 0 11px 26px rgba(45,105,165,.46), inset 0 1px 1px rgba(255,255,255,.4); }
+    .fab:active { transform: translateY(0) scale(.97); }
+    .fab:focus-visible { outline: 3px solid rgba(91,160,229,.45); outline-offset: 3px; }
     .fab.hidden { display: none; }
     .fab.thinking { animation: fab-pulse 1.2s ease-in-out infinite; }
-    @keyframes fab-pulse { 0%,100% { box-shadow: 0 4px 16px rgba(74,144,217,.4); } 50% { box-shadow: 0 4px 24px rgba(74,144,217,.75); } }
+    @keyframes fab-pulse { 0%,100% { box-shadow: 0 8px 22px rgba(45,105,165,.36), 0 0 0 0 rgba(82,211,138,.35); } 50% { box-shadow: 0 10px 26px rgba(45,105,165,.48), 0 0 0 7px rgba(82,211,138,0); } }
+    @media (max-width: 600px) { .fab { right: 12px; width: 46px; height: 46px; font-size: 13px; } }
+    @media (prefers-reduced-motion: reduce) { .fab, .bubble { animation: none !important; transition: none !important; } }
     .cite-badge {
       display: inline-flex; align-items: center; gap: 3px;
       background: #eaf3fc; color: #4a90d9; border: 1px solid #b8d4f0;
@@ -253,6 +260,17 @@
     .cite-sources .cite-label { font-size: 11px; color: #999; margin-right: 2px; }
     .panel.dark .cite-sources { border-color: #3a3f46; }
     .panel.dark .cite-sources .cite-label { color: #8b949e; }
+    .agent-steps { display: flex; flex-direction: column; gap: 4px; margin: 2px 0 8px; }
+    .agent-step {
+      font-size: 11.5px; line-height: 1.5; color: #7a8694;
+      background: rgba(74,144,217,.08); border-left: 2px solid #4a90d9;
+      padding: 4px 8px; border-radius: 0 6px 6px 0; word-break: break-word;
+    }
+    .panel.dark .agent-step { background: rgba(110,168,254,.12); color: #9aa6b3; }
+    .agent-tool { font-weight: 600; color: #4a90d9; }
+    .panel.dark .agent-tool { color: #7db4e8; }
+    .agent-tool-arg { color: inherit; opacity: .85; }
+    .agent-content { min-height: 1px; }
   `;
 
   // ---- 自动补全状态 ----
@@ -280,10 +298,11 @@
     style.textContent = CSS;
     shadow.appendChild(style);
 
-    fab = document.createElement('div');
+    fab = document.createElement('button');
     fab.className = 'fab';
     fab.textContent = 'AI';
     fab.title = 'AI 助手';
+    fab.setAttribute('aria-label', '打开 AI 助手');
     fab.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -841,6 +860,7 @@
       if (stopBtn) stopBtn.style.display = 'none';
       if (sendBtn) sendBtn.disabled = false;
       pendingAiMsg = null;
+      pendingContentEl = null;
       pendingStarted = false;
       pendingAcc = '';
     }
@@ -852,7 +872,7 @@
         if (pendingAiMsg && pendingAiMsg.parentNode) {
           if (acc) {
             lastResponse = acc;
-            pendingAiMsg.innerHTML = renderMarkdown(acc, currentCitations, false);
+            if (pendingContentEl) pendingContentEl.innerHTML = renderMarkdown(acc, currentCitations, false);
             pendingAiMsg._raw = acc;
             conversation.push({ role: 'assistant', content: acc });
             saveConversation();
@@ -862,8 +882,10 @@
             pendingAiMsg.appendChild(note);
             pendingAiMsg.insertAdjacentHTML('beforeend', msgActionsHtml());
           } else {
-          pendingAiMsg.textContent = '（已停止）';
-          pendingAiMsg.style.color = '#999';
+          if (pendingContentEl) {
+            pendingContentEl.textContent = '（已停止）';
+            pendingContentEl.style.color = '#999';
+          }
         }
       }
       endStream();
@@ -880,7 +902,13 @@
       userMsg.textContent = instruction;
       const aiMsg = document.createElement('div');
       aiMsg.className = 'msg ai';
-      aiMsg.innerHTML = '<span class="typing"><span></span><span></span><span></span></span>';
+      const stepsEl = document.createElement('div');
+      stepsEl.className = 'agent-steps';
+      const contentEl = document.createElement('div');
+      contentEl.className = 'agent-content';
+      contentEl.innerHTML = '<span class="typing"><span></span><span></span><span></span></span>';
+      aiMsg.appendChild(stepsEl);
+      aiMsg.appendChild(contentEl);
       panelBody.appendChild(userMsg);
       panelBody.appendChild(aiMsg);
       fitPanelHeight();
@@ -888,6 +916,7 @@
 
       pendingAcc = '';
       pendingAiMsg = aiMsg;
+      pendingContentEl = contentEl;
       pendingStarted = false;
       streaming = true;
       if (stopBtn) stopBtn.style.display = '';
@@ -898,19 +927,32 @@
       conn.onMessage.addListener((resp) => {
         if (resp.type === 'citations') {
           currentCitations = resp.citations || null;
+        } else if (resp.type === 'tool') {
+          const step = document.createElement('div');
+          step.className = 'agent-step';
+          const argStr = resp.args && resp.args.query ? resp.args.query : resp.args && resp.args.id ? resp.args.id : '';
+          step.innerHTML =
+            '<span class="agent-tool">🔧 ' + escHtml(resp.name) + '</span>' +
+            (argStr ? '<span class="agent-tool-arg">：' + escHtml(argStr) + '</span>' : '');
+          stepsEl.appendChild(step);
+          fitPanelHeight();
+          panelBody.scrollTop = panelBody.scrollHeight;
         } else if (resp.type === 'chunk') {
           pendingAcc += resp.text;
-          if (!pendingStarted) pendingStarted = true;
-          aiMsg.innerHTML = renderMarkdown(pendingAcc, currentCitations, true);
+          if (!pendingStarted) {
+            pendingStarted = true;
+            contentEl.innerHTML = '';
+          }
+          contentEl.innerHTML = renderMarkdown(pendingAcc, currentCitations, true);
           aiMsg._raw = pendingAcc;
           fitPanelHeight();
           panelBody.scrollTop = panelBody.scrollHeight;
         } else if (resp.type === 'end') {
           lastResponse = pendingAcc || '';
           if (!pendingStarted) {
-            aiMsg.textContent = '（无返回内容）';
+            contentEl.textContent = '（无返回内容）';
           } else {
-            aiMsg.innerHTML = renderMarkdown(lastResponse, currentCitations, false);
+            contentEl.innerHTML = renderMarkdown(lastResponse, currentCitations, false);
             aiMsg._raw = lastResponse;
           }
           // 附加引用来源区域
@@ -938,8 +980,8 @@
           endStream();
           closePort();
         } else if (resp.type === 'error') {
-          aiMsg.textContent = resp.error;
-          aiMsg.style.color = '#e74c3c';
+          contentEl.textContent = resp.error;
+          contentEl.style.color = '#e74c3c';
           if (resp.needSetup) {
             const go = document.createElement('button');
             go.textContent = '打开设置';
@@ -958,7 +1000,7 @@
         if (port === null && streaming) endStream();
       });
       conn.postMessage({
-        action: 'command',
+        action: 'agent',
         question: instruction,
         text: lastText,
         page: pageText,
@@ -1307,6 +1349,15 @@
   document.addEventListener('mouseup', () => {
     dragState = null;
     resizeState = null;
+  });
+
+  // 响应后台的即时页面正文读取请求（Agent 工具 read_current_page）
+  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (msg && msg.type === 'kbGetPageText') {
+      sendResponse({ text: extractPageText() });
+      return true;
+    }
+    return false;
   });
 
   // ---- 初始化 ----

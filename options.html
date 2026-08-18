@@ -64,6 +64,13 @@
       </label>
     </section>
 
+    <section class="card">
+      <h2><span class="ico">🔌</span> MCP 服务器（Agent 工具扩展）</h2>
+      <span class="hint">配置远程 MCP 服务器（Streamable HTTP），Agent 会自动连接并加载其工具（工具名以 mcp__ 开头）。<b>需把各服务器域名加入 manifest.json 的 host_permissions</b>，否则无法跨域访问。</span>
+      <div id="mcp-list" class="mcp-list"></div>
+      <button id="mcp-add" class="ghost-btn" type="button">+ 添加服务器</button>
+    </section>
+
     <div class="actions">
       <button id="save-btn" class="primary">保存设置</button>
       <span id="status" class="status"></span>

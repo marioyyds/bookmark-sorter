@@ -1,6 +1,6 @@
-importScripts('shared.js');
+importScripts('shared.js', 'tools.js', 'mcp.js');
 
-async function callDeepSeek(settings, messages) {
+async function callDeepSeekOnce(settings, messages) {
   const url = settings.baseUrl.replace(/\/+$/, '') + '/chat/completions';
   const resp = await fetch(url, {
     method: 'POST',
@@ -24,13 +24,34 @@ async function callDeepSeek(settings, messages) {
     } catch (e) {
       detail = await resp.text();
     }
-    throw new Error('DeepSeek 请求失败 (' + resp.status + '): ' + detail);
+    const err = new Error('DeepSeek 请求失败 (' + resp.status + '): ' + detail);
+    err.status = resp.status;
+    throw err;
   }
 
   const data = await resp.json();
   const content = data.choices && data.choices[0] && data.choices[0].message.content;
   if (!content) throw new Error('DeepSeek 返回为空');
   return content.trim();
+}
+
+/** 判断错误是否可重试：网络错误（无 status）或服务端 5xx / 429 限流 */
+function isRetryableError(e) {
+  if (!e || !e.status) return true;
+  return e.status === 429 || e.status >= 500;
+}
+
+/** 带指数退避重试的 DeepSeek 调用（最多 3 次尝试，间隔 0.5s/1s） */
+async function callDeepSeek(settings, messages) {
+  const MAX_RETRIES = 2;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await callDeepSeekOnce(settings, messages);
+    } catch (e) {
+      if (attempt >= MAX_RETRIES || !isRetryableError(e)) throw e;
+      await new Promise((r) => setTimeout(r, 500 * Math.pow(2, attempt)));
+    }
+  }
 }
 
 async function handleAi(request) {
@@ -51,6 +72,159 @@ async function handleAi(request) {
 
   const answer = await callDeepSeek(settings, messages);
   return { ok: true, answer };
+}
+
+const AGENT_MAX_ITER = 6;
+
+/**
+ * 以流式方式调用一次 Agent 步骤，解析 SSE 中的 content 与 tool_calls。
+ * content 实时作为 chunk 事件转发给前端；tool_calls 累积后返回。
+ * @returns {Promise<{assistantMessage, toolCalls, error?}>}
+ */
+async function streamAgentStep(port, settings, messages, signal, tools) {
+  const url = settings.baseUrl.replace(/\/+$/, '') + '/chat/completions';
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer ' + settings.apiKey,
+    },
+    body: JSON.stringify({
+      model: settings.model,
+      messages,
+      tools,
+      tool_choice: 'auto',
+      temperature: 0.3,
+      stream: true,
+    }),
+    signal,
+  });
+
+  if (!resp.ok) {
+    let detail = '';
+    try {
+      const j = await resp.json();
+      detail = j.error && j.error.message ? j.error.message : JSON.stringify(j);
+    } catch (e) {
+      detail = await resp.text();
+    }
+    return { error: 'DeepSeek 请求失败 (' + resp.status + '): ' + detail };
+  }
+
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let contentAcc = '';
+  const toolAcc = [];
+
+  const ensureTool = (i) => {
+    while (toolAcc.length <= i) toolAcc.push({ index: toolAcc.length, id: '', name: '', args: '' });
+    return toolAcc[i];
+  };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop();
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith('data:')) continue;
+      const data = trimmed.slice(5).trim();
+      if (data === '[DONE]') continue;
+      let json;
+      try {
+        json = JSON.parse(data);
+      } catch (e) {
+        continue;
+      }
+      const choice = json.choices && json.choices[0];
+      if (!choice) continue;
+      const delta = choice.delta || {};
+      if (delta.content) {
+        contentAcc += delta.content;
+        port.postMessage({ type: 'chunk', text: delta.content });
+      }
+      if (delta.tool_calls) {
+        for (const tc of delta.tool_calls) {
+          const t = ensureTool(tc.index || 0);
+          if (tc.id) t.id = tc.id;
+          if (tc.function) {
+            if (tc.function.name) t.name = tc.function.name;
+            if (tc.function.arguments) t.args += tc.function.arguments;
+          }
+        }
+      }
+    }
+  }
+
+  const toolCalls = toolAcc
+    .filter((t) => t.name || t.id)
+    .map((t) => ({ id: t.id, name: t.name, args: parseToolArgs(t.args) }));
+
+  const assistantMessage = { role: 'assistant', content: contentAcc };
+  if (toolCalls.length) {
+    assistantMessage.tool_calls = toolCalls.map((t) => ({
+      id: t.id,
+      type: 'function',
+      function: { name: t.name, arguments: JSON.stringify(t.args) },
+    }));
+  }
+  return { assistantMessage, toolCalls };
+}
+
+/**
+ * Agent 主循环：流式对话 + 工具调用。
+ * 模型返回 tool_calls 时执行真实工具（检索/增删知识库）并把结果喂回，
+ * 直到模型给出最终文本回复（流式推送）或达到最大步数。
+ */
+async function runAgentStream(port, payload, settings, book, signal, tabId) {
+  const ctx = { book, settings, page: payload.page || '', tabId };
+  const tools = await collectAgentTools(settings);
+  const instruction = payload.question || payload.command || payload.text || '';
+  const selectedText = payload.text || '';
+  const history = Array.isArray(payload.history) ? payload.history.slice(-10) : [];
+
+  const messages = [{ role: 'system', content: AGENT_SYSTEM_PROMPT }];
+  for (const h of history) {
+    if (h && (h.role === 'user' || h.role === 'assistant') && typeof h.content === 'string') {
+      messages.push({ role: h.role, content: h.content.slice(0, 3000) });
+    }
+  }
+  const userParts = [];
+  if (selectedText) userParts.push('选中的文本：\n' + selectedText);
+  if (ctx.page) userParts.push('当前页面内容（作为背景上下文）：\n' + ctx.page);
+  if (instruction) userParts.push('用户指令 / 问题：\n' + instruction);
+  if (!userParts.length) userParts.push('（无输入）');
+  messages.push({ role: 'user', content: userParts.join('\n\n') });
+
+  for (let iter = 0; iter < AGENT_MAX_ITER; iter++) {
+    const step = await streamAgentStep(port, settings, messages, signal, tools);
+    if (step.error) {
+      port.postMessage({ type: 'error', error: step.error });
+      return;
+    }
+    messages.push(step.assistantMessage);
+
+    if (step.toolCalls.length) {
+      for (const tc of step.toolCalls) {
+        const res = await executeAnyTool(tc.name, tc.args, ctx);
+        if (res.citations) {
+          port.postMessage({ type: 'citations', citations: res.citations });
+        }
+        port.postMessage({ type: 'tool', name: tc.name, args: tc.args, result: res.result });
+        messages.push({ role: 'tool', tool_call_id: tc.id, content: res.result });
+      }
+      continue;
+    }
+
+    port.postMessage({ type: 'end' });
+    return;
+  }
+
+  port.postMessage({ type: 'chunk', text: '\n\n（已达到最大推理步数，已停止）' });
+  port.postMessage({ type: 'end' });
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -95,6 +269,11 @@ chrome.runtime.onConnect.addListener((port) => {
         return;
       }
       const book = await getBook();
+      if (payload.action === 'agent') {
+        const tabId = port.sender && port.sender.tab && port.sender.tab.id;
+        await runAgentStream(port, payload, settings, book, controller.signal, tabId);
+        return;
+      }
       const messages = buildAiMessages(payload.action, payload, settings, book);
       if (!messages) {
         port.postMessage({ type: 'error', error: '未知操作：' + payload.action });
