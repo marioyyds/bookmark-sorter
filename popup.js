@@ -10,19 +10,8 @@ let sortBy = 'updated';
 
 const $ = (id) => document.getElementById(id);
 
-let toastTimer = null;
-
 function toast(msg) {
-  let el = $('toast');
-  if (!el) {
-    el = document.createElement('div');
-    el.id = 'toast';
-    document.body.appendChild(el);
-  }
-  el.textContent = msg;
-  el.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), 1400);
+  showToast(msg, { duration: 1400 });
 }
 
 async function loadCache() {

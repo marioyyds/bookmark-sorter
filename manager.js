@@ -5,8 +5,6 @@ let currentStar = 'all';
 let sortBy = 'updated';
 let editingNoteId = null;
 let selectedIds = new Set();
-let toastTimer = null;
-let toastUndo = null;
 
 const $ = (id) => document.getElementById(id);
 
@@ -184,27 +182,7 @@ async function createNote() {
 }
 
 function toast(msg, undoFn) {
-  let el = $('toast');
-  if (!el) {
-    el = document.createElement('div');
-    el.id = 'toast';
-    document.body.appendChild(el);
-  }
-  el.textContent = msg;
-  if (undoFn) {
-    const btn = document.createElement('button');
-    btn.textContent = '撤销';
-    btn.addEventListener('click', () => {
-      undoFn();
-      el.classList.remove('show');
-    });
-    el.innerHTML = '';
-    el.textContent = msg + ' ';
-    el.appendChild(btn);
-  }
-  el.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+  showToast(msg, { undoFn, duration: 3000 });
 }
 
 function showConfirm(msg) {
