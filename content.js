@@ -26,6 +26,8 @@
   let activeRunId = null;
   let currentCitations = null; // 当前回答的引用来源元数据
   let citeHighlights = []; // 页面内引用高亮的浮层元素数组（绝对定位覆盖，不改动页面 DOM）
+  let citeHighlightRange = null;
+  let citeHighlightEntered = false;
   const CONV_KEY = 'kbConversation';
 
   // 提取页面正文，作为指令的上下文
@@ -35,9 +37,7 @@
       if (!doc) return '';
       const clone = doc.cloneNode(true);
       clone
-        .querySelectorAll(
-          'script, style, noscript, iframe, svg, canvas, nav, header, footer, aside, form, button, input, select, textarea, [contenteditable], .ad, .ads, .advertisement, .banner, [class*=cookie], [id*=cookie], [class*=popup], [class*=modal]'
-        )
+        .querySelectorAll(PAGE_TEXT_EXCLUDE)
         .forEach((el) => el.remove());
       let text = clone.innerText || '';
       text = text
@@ -123,7 +123,7 @@
       background: linear-gradient(135deg, #4a90d9, #63a0e2); color: #fff;
       border-radius: 12px 12px 4px 12px;
       padding: 8px 14px; margin-left: auto; white-space: pre-wrap;
-      width: fit-content; max-width: 85%;
+      width: fit-content;
       box-shadow: 0 2px 8px rgba(74,144,217,.22);
     }
     .msg.ai { background: transparent; padding: 0 2px; margin-right: 6px; }
@@ -239,7 +239,7 @@
       transition: transform .18s ease, box-shadow .18s ease, filter .18s ease;
       user-select: none;
     }
-    .user-turn { width: fit-content; max-width: 88%; margin: 0 0 14px auto; }
+    .user-turn { width: fit-content; max-width: 96%; margin: 0 0 14px auto; }
     .user-turn .msg { margin-bottom: 3px; }
     .user-actions { display: flex; justify-content: flex-end; align-items: center; opacity: 0; transition: opacity .15s; }
     .user-turn:hover .user-actions, .user-actions:hover { opacity: 1; }
@@ -729,11 +729,40 @@
   }
 
   // ---- 页面内引用定位与高亮 ----
+  const PAGE_TEXT_EXCLUDE =
+    'script,style,noscript,iframe,svg,canvas,nav,header,footer,aside,form,button,input,select,textarea,[contenteditable],.ad,.ads,.advertisement,.banner,[class*=cookie],[id*=cookie],[class*=popup],[class*=modal],#__kb-ai-host';
+
+  function normalizeCitationText(value) {
+    return String(value || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  function isCitationTextNode(node) {
+    const parent = node && node.parentElement;
+    if (!parent || parent.closest(PAGE_TEXT_EXCLUDE)) return false;
+    try {
+      const style = getComputedStyle(parent);
+      if (style.display === 'none' || style.visibility === 'hidden') return false;
+    } catch (e) {}
+    return true;
+  }
   function clearCiteHighlight() {
     citeHighlights.forEach((el) => {
       if (el && el.parentNode) el.parentNode.removeChild(el);
     });
     citeHighlights = [];
+    citeHighlightRange = null;
+    citeHighlightEntered = false;
+  }
+
+  function isPointerInCitationRange(event) {
+    if (!citeHighlightRange) return false;
+    try {
+      return Array.prototype.some.call(citeHighlightRange.getClientRects(), (rect) =>
+        event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom
+      );
+    } catch (e) {
+      return false;
+    }
   }
 
   // 把页面所有可见文本节点按「去除所有空白」拼接成扁平文本，并记录每个字符对应的
@@ -746,8 +775,7 @@
     const charOffset = [];
     let text = '';
     while ((n = walker.nextNode())) {
-      const p = n.parentElement;
-      if (!p || p.closest('script,style,noscript,svg,iframe,pre,code,kbd,samp,#__kb-ai-host')) continue;
+      if (!isCitationTextNode(n)) continue;
       const v = n.nodeValue || '';
       for (let i = 0; i < v.length; i++) {
         if (/\s/.test(v[i])) continue;
@@ -773,8 +801,32 @@
 
   // 用「去除空白后的子串」在页面中查找引用片段，返回 Range（可跨节点）
   function findRangeBySubstr(map, snippet) {
-    const q = String(snippet || '').replace(/\s+/g, '');
+    const q = normalizeCitationText(snippet).replace(/\s+/g, '');
     if (!q) return null;
+
+    const findAll = (needle) => {
+      const indexes = [];
+      let from = 0;
+      while (needle.length >= 10) {
+        const at = map.text.indexOf(needle, from);
+        if (at < 0) break;
+        indexes.push(at);
+        from = at + 1;
+      }
+      return indexes;
+    };
+
+    // 片段较长时，首尾同时命中才视为同一证据块，避免跳到相同开头的段落。
+    if (q.length >= 120) {
+      const prefix = q.slice(0, 120);
+      const suffix = q.slice(-100);
+      for (const start of findAll(prefix)) {
+        const endStart = map.text.indexOf(suffix, start + prefix.length);
+        if (endStart >= 0 && endStart - start <= q.length + 240) {
+          return rangeFromCharMap(start, endStart + suffix.length - start, map);
+        }
+      }
+    }
 
     // 依次尝试：整段 → 前缀/中段/后缀窗口（80 字符），提升含代码块的片段的命中率
     const candidates = [q];
@@ -785,8 +837,8 @@
     }
     for (const cand of candidates) {
       if (cand.length < 10) continue;
-      const idx = map.text.indexOf(cand);
-      if (idx >= 0) return rangeFromCharMap(idx, cand.length, map);
+      const indexes = findAll(cand);
+      if (indexes.length) return rangeFromCharMap(indexes[0], cand.length, map);
     }
     // 前缀逐级缩短回退
     for (let len = Math.min(q.length, 80); len >= 10; len = Math.floor(len * 0.6)) {
@@ -837,12 +889,19 @@
 
     try {
       citeHighlights = overlayRange(range);
+      citeHighlightRange = range;
+      citeHighlightEntered = false;
     } catch (e) {
       logError('citation overlay failed', e);
     }
 
-    const el = range.startContainer.parentElement;
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const rect = range.getBoundingClientRect();
+    if (rect && rect.height) {
+      window.scrollTo({ top: Math.max(0, window.scrollY + rect.top - window.innerHeight * 0.38), behavior: 'smooth' });
+    } else {
+      const el = range.startContainer.parentElement;
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
     return true;
   }
 
@@ -1553,6 +1612,13 @@
   }, true);
 
   document.addEventListener('mousemove', (e) => {
+    // 高亮覆盖层不接管鼠标事件，改为根据 Range 判断指针是否进入/离开证据文本。
+    // 只有用户实际进入过高亮内容后才在离开时清除，避免点击引用后立刻消失。
+    if (citeHighlightRange) {
+      const inCitation = isPointerInCitationRange(e);
+      if (inCitation) citeHighlightEntered = true;
+      else if (citeHighlightEntered) clearCiteHighlight();
+    }
     if (dragState && panel) {
       const dx = e.clientX - dragState.startX;
       const dy = e.clientY - dragState.startY;
