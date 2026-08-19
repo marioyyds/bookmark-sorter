@@ -232,6 +232,13 @@
       transition: transform .18s ease, box-shadow .18s ease, filter .18s ease;
       user-select: none;
     }
+    .user-turn { width: fit-content; max-width: 88%; margin: 0 0 14px auto; }
+    .user-turn .msg { margin-bottom: 3px; }
+    .user-actions { display: flex; justify-content: flex-end; align-items: center; opacity: 0; transition: opacity .15s; }
+    .user-turn:hover .user-actions, .user-actions:hover { opacity: 1; }
+    .user-actions button { border: none; background: none; color: #98a0aa; font-size: 11.5px; cursor: pointer; padding: 2px 7px; border-radius: 6px; font-family: inherit; }
+    .user-actions button:hover { background: rgba(0,0,0,.06); color: #4a90d9; }
+    .panel.dark .user-actions button:hover { background: rgba(255,255,255,.08); color: #6aa5e0; }
     .fab::before { content: ''; position: absolute; inset: 5px; border: 1px solid rgba(255,255,255,.2); border-radius: 50%; pointer-events: none; }
     .fab::after { content: ''; position: absolute; right: -2px; bottom: 2px; width: 10px; height: 10px; border-radius: 50%; background: #52d38a; border: 2px solid #fff; }
     .fab:hover { transform: translateY(-2px) scale(1.06); filter: saturate(1.08); box-shadow: 0 11px 26px rgba(45,105,165,.46), inset 0 1px 1px rgba(255,255,255,.4); }
@@ -450,6 +457,10 @@
   // AI 回复底部操作栏（元宝风格：复制等）
   function msgActionsHtml() {
     return '<div class="msg-actions"><button class="act-copy" title="复制回答内容">⧉ 复制</button></div>';
+  }
+
+  function userActionsHtml(index) {
+    return '<div class="user-actions"><button class="act-rewind" data-turn-index="' + index + '" title="撤销这条指令及其后续对话">↶ 撤销</button><button class="act-user-copy" title="复制这条指令">⧉ 复制</button></div>';
   }
 
   // ---- Markdown 渲染 ----
@@ -678,9 +689,9 @@
 
     panelBody.className = 'p-body';
     panelBody.innerHTML = conversation
-      .map((m) => {
+      .map((m, index) => {
         if (m.role === 'user') {
-          return '<div class="msg user">' + escHtml(m.content) + '</div>';
+          return '<div class="user-turn"><div class="msg user">' + escHtml(m.content) + '</div>' + userActionsHtml(index) + '</div>';
         }
         const parts = Array.isArray(m.parts) ? m.parts : [];
         const toolSteps = parts
@@ -742,6 +753,29 @@
     panelBody = document.createElement('div');
     panelBody.className = 'p-body';
     panelBody.addEventListener('click', (e) => {
+      const rewind = e.target.closest('.act-rewind');
+      if (rewind) {
+        if (streaming) return;
+        const index = Number(rewind.getAttribute('data-turn-index'));
+        if (Number.isInteger(index) && conversation[index] && conversation[index].role === 'user') {
+          conversation = conversation.slice(0, index);
+          saveConversation();
+          renderConversation();
+          fitPanelHeight();
+          panelBody.scrollTop = panelBody.scrollHeight;
+        }
+        return;
+      }
+      const userCopy = e.target.closest('.act-user-copy');
+      if (userCopy) {
+        const turn = userCopy.closest('.user-turn');
+        const msgEl = turn && turn.querySelector('.msg.user');
+        if (msgEl) navigator.clipboard.writeText(msgEl.textContent || '').then(() => {
+          userCopy.textContent = '✓ 已复制';
+          setTimeout(() => (userCopy.textContent = '⧉ 复制'), 1200);
+        });
+        return;
+      }
       const actBtn = e.target.closest('.act-copy');
       if (actBtn) {
         const msgEl = actBtn.closest('.msg');
@@ -954,8 +988,8 @@
       lastResponse = '';
       conversation.push({ role: 'user', content: instruction });
       const userMsg = document.createElement('div');
-      userMsg.className = 'msg user';
-      userMsg.textContent = instruction;
+      userMsg.className = 'user-turn';
+      userMsg.innerHTML = '<div class="msg user">' + escHtml(instruction) + '</div>' + userActionsHtml(conversation.length - 1);
       const aiMsg = document.createElement('div');
       aiMsg.className = 'msg ai';
       const stepsEl = document.createElement('div');
