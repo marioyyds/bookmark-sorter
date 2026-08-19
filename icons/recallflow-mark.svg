@@ -1,0 +1,26 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="24" y1="18" x2="230" y2="244" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2369B3"/>
+      <stop offset="1" stop-color="#123B73"/>
+    </linearGradient>
+    <linearGradient id="flow" x1="52" y1="73" x2="202" y2="183" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#BDEBFF"/>
+      <stop offset="1" stop-color="#63C9F5"/>
+    </linearGradient>
+    <filter id="shadow" x="25" y="30" width="208" height="198" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="8" stdDeviation="7" flood-color="#061A38" flood-opacity=".28"/>
+    </filter>
+  </defs>
+
+  <!-- RecallFlow: a retained knowledge node joined by a looping recall path. -->
+  <rect x="10" y="10" width="236" height="236" rx="58" fill="url(#bg)"/>
+  <path d="M34 195C21 159 29 109 57 77C83 47 126 36 164 52C189 62 206 83 211 108" stroke="#7BD7FA" stroke-opacity=".2" stroke-width="10" stroke-linecap="round"/>
+  <g filter="url(#shadow)">
+    <path d="M55 145C55 109 84 81 120 81H154C171 81 185 95 185 112C185 129 171 143 154 143H109C97 143 88 152 88 164C88 176 98 185 110 185H171" stroke="url(#flow)" stroke-width="19" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M157 161L181 185L157 209" stroke="#D9F5FF" stroke-width="19" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="119" cy="112" r="18" fill="#EFFBFF"/>
+    <circle cx="119" cy="112" r="8" fill="#1A5B9E"/>
+  </g>
+  <circle cx="202" cy="58" r="10" fill="#8BE4FF"/>
+</svg>

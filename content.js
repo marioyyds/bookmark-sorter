@@ -95,7 +95,7 @@
     .p-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: #f5f6f8; border-bottom: 1px solid #e2e5ea; cursor: grab; }
     .p-head:active { cursor: grabbing; }
     .panel.dark .p-head { background: #2f3339; border-color: #3a3f46; }
-    .p-head .logo { width: 18px; height: 18px; border-radius: 50%; background: #4a90d9; color: #fff; font-size: 10px; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0; }
+    .p-head .logo { width: 20px; height: 20px; object-fit: contain; flex-shrink: 0; }
     .p-head .title { font-size: 13px; font-weight: 600; color: #333; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .panel.dark .p-head .title { color: #e3e5e8; }
     .p-head .close { border: none; background: none; color: #999; font-size: 16px; cursor: pointer; line-height: 1; padding: 2px 4px; border-radius: 4px; }
@@ -244,6 +244,7 @@
     .fab:hover { transform: translateY(-2px) scale(1.06); filter: saturate(1.08); box-shadow: 0 11px 26px rgba(45,105,165,.46), inset 0 1px 1px rgba(255,255,255,.4); }
     .fab:active { transform: translateY(0) scale(.97); }
     .fab:focus-visible { outline: 3px solid rgba(91,160,229,.45); outline-offset: 3px; }
+    .fab img { width: 37px; height: 37px; object-fit: contain; position: relative; z-index: 1; }
     .fab.hidden { display: none; }
     .fab.thinking { animation: fab-pulse 1.2s ease-in-out infinite; }
     @keyframes fab-pulse { 0%,100% { box-shadow: 0 8px 22px rgba(45,105,165,.36), 0 0 0 0 rgba(82,211,138,.35); } 50% { box-shadow: 0 10px 26px rgba(45,105,165,.48), 0 0 0 7px rgba(82,211,138,0); } }
@@ -305,9 +306,12 @@
 
     fab = document.createElement('button');
     fab.className = 'fab';
-    fab.textContent = 'AI';
-    fab.title = 'AI 助手';
-    fab.setAttribute('aria-label', '打开 AI 助手');
+    const fabIcon = document.createElement('img');
+    fabIcon.src = chrome.runtime.getURL('icons/recallflow-mark.svg');
+    fabIcon.alt = '';
+    fab.appendChild(fabIcon);
+    fab.title = 'RecallFlow';
+    fab.setAttribute('aria-label', '打开 RecallFlow');
     fab.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -354,7 +358,7 @@
     removePanel();
     bubble = document.createElement('div');
     bubble.className = 'bubble';
-    bubble.innerHTML = '<span class="dot"></span><span>AI 助手</span>';
+    bubble.innerHTML = '<span class="dot"></span><span>RecallFlow</span>';
     bubble.addEventListener('mousedown', (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -728,10 +732,11 @@
     head.className = 'p-head';
     const logo = document.createElement('span');
     logo.className = 'logo';
-    logo.textContent = 'AI';
+    logo.src = chrome.runtime.getURL('icons/recallflow-mark.svg');
+    logo.alt = 'RecallFlow';
     const title = document.createElement('span');
     title.className = 'title';
-    title.textContent = 'AI 助手';
+    title.textContent = 'RecallFlow';
     const close = document.createElement('button');
     close.className = 'close';
     close.textContent = '✕';

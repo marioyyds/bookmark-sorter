@@ -2,17 +2,17 @@
   "manifest_version": 3,
   "name": "个人知识库",
   "version": "3.0.0",
-  "description": "个人知识库 + AI 助手：收录算法错题、技术文章、AI 工具与 Prompt、手动笔记，支持划词问答、翻译、解释与基于知识库的 RAG 检索问答。",
+  "description": "个人知识库 + RecallFlow：收录算法错题、技术文章、AI 工具与 Prompt、手动笔记，支持划词问答、翻译、解释与基于知识库的 RAG 检索问答。",
   "permissions": ["tabs", "storage", "contextMenus"],
   "host_permissions": ["https://api.deepseek.com/*"],
   "action": {
     "default_popup": "popup.html",
     "default_title": "个人知识库",
     "default_icon": {
-      "16": "icons/icon16.png",
-      "32": "icons/icon32.png",
-      "48": "icons/icon48.png",
-      "128": "icons/icon128.png"
+      "16": "icons/recallflow-mark.svg",
+      "32": "icons/recallflow-mark.svg",
+      "48": "icons/recallflow-mark.svg",
+      "128": "icons/recallflow-mark.svg"
     }
   },
   "background": {
@@ -29,10 +29,16 @@
       "run_at": "document_idle"
     }
   ],
+  "web_accessible_resources": [
+    {
+      "resources": ["icons/recallflow-mark.svg"],
+      "matches": ["http://*/*", "https://*/*"]
+    }
+  ],
   "icons": {
-    "16": "icons/icon16.png",
-    "32": "icons/icon32.png",
-    "48": "icons/icon48.png",
-    "128": "icons/icon128.png"
+    "16": "icons/recallflow-mark.svg",
+    "32": "icons/recallflow-mark.svg",
+    "48": "icons/recallflow-mark.svg",
+    "128": "icons/recallflow-mark.svg"
   }
 }
