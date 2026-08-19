@@ -25,8 +25,11 @@
 - **结合整页内容**：回答时自动参考当前网页正文上下文，而不只局限于选中的文字（可在设置里开关）
 - **RAG 知识库检索**：指令/提问时自动把相关知识库条目作为上下文，让 AI 基于你的收藏执行；直接问「知识库里有什么」会自动列出知识库全部条目（可在设置里开关）
 - **中断生成**：AI 流式回复过程中，面板底部出现「停止」按钮，点击即中断，已生成内容会保留在对话中
+- **可审计工具流**：对话面板会展示 Agent 的工具调用开始/完成状态，文本输出与工具事件分离，便于理解 Agent 正在做什么
+- **结构化对话记录**：对话会保存文本、工具调用与工具结果；重开面板后仍可查看 Agent 的执行过程
+- **工具审批**：默认在新增/删除知识库、打开或抓取外部网页、调用 MCP 工具前暂停并要求确认；可在设置页关闭
+- **对话快捷语句**：对话框提供“总结全文”“翻译成中文”等快捷按钮，也可在设置页自定义
 - **自适应窗口**：悬浮模式下，回复时面板高度随内容自动伸缩，最高不超过视口，始终贴合屏幕右下角
-- **内联自动补全**：在网页输入框、文本域、富文本/代码编辑器里打字时，AI 自动在光标后生成灰色补全建议，按 `Tab` 接受，按 `Esc` 取消；支持原生 `textarea`/`input`/`contenteditable` 及等宽字体的代码编辑器（可在设置里开关）
 
 ### 接入 MCP 服务器（扩展 Agent 工具）
 
@@ -47,7 +50,7 @@ Agent 可作为 **MCP 客户端**连接你自建/第三方的远程 MCP 服务�
 
 1. 点击插件图标 → 弹窗底部「设置」，或右键插件图标 →「选项」
 2. 填入 DeepSeek API Key（在 [platform.deepseek.com](https://platform.deepseek.com) 申请）
-3. 按需调整模型（默认 `deepseek-chat`）、翻译目标语言、RAG 开关
+3. 按需调整模型（默认 `deepseek-chat`）、翻译目标语言、RAG、Agent 工具审批和快捷语句
 4. 保存即可使用 AI 功能；不配置 Key 也不影响知识库的收录与检索
 
 ## 使用
@@ -63,9 +66,9 @@ Agent 可作为 **MCP 客户端**连接你自建/第三方的远程 MCP 服务�
 ```
 bookmark-sorter/
 ├── manifest.json   # MV3 清单
-├── background.js   # Service Worker：DeepSeek 流式调用 + RAG 检索
-├── content.js      # 划词悬浮 AI 对话 + 输入框内联补全（Shadow DOM 隔离样式）
-├── options.html    # 设置页（API Key/模型/RAG/补全开关）
+├── background.js   # Service Worker：DeepSeek 流式调用 + Agent 编排/工具审批
+├── content.js      # 划词悬浮 AI 对话（Shadow DOM 隔离样式）
+├── options.html    # 设置页（API Key/模型/RAG/工具审批/快捷语句）
 ├── options.css / options.js
 ├── popup.html      # 弹窗（快速收录 + 列表）
 ├── popup.css / popup.js

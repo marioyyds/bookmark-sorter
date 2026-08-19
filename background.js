@@ -76,12 +76,42 @@ async function handleAi(request) {
 
 const AGENT_MAX_ITER = 6;
 
+// 只放行纯读取类工具。其余工具可能写入本地数据、改变浏览器状态、访问外部服务，
+// 按 Cline 的交互模式交由前端取得用户明确批准后再执行。
+function toolNeedsApproval(name) {
+  return getToolMetadata(name).requiresApproval === true;
+}
+
+function waitForToolApproval(port, callId, name, args, signal, runId) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (approved) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      port.onMessage.removeListener(onMessage);
+      if (signal) signal.removeEventListener('abort', onAbort);
+      resolve(approved);
+    };
+    const onMessage = (message) => {
+      if (message && message.type === 'tool-approval' && message.callId === callId) {
+        finish(message.decision || (message.approved === true ? 'once' : 'reject'));
+      }
+    };
+    const onAbort = () => finish(false);
+    const timer = setTimeout(() => finish(false), 60000);
+    port.onMessage.addListener(onMessage);
+    if (signal) signal.addEventListener('abort', onAbort, { once: true });
+    port.postMessage({ type: 'tool-call', runId, callId, name, args, requiresApproval: true, risk: getToolMetadata(name).risk });
+  });
+}
+
 /**
  * 以流式方式调用一次 Agent 步骤，解析 SSE 中的 content 与 tool_calls。
  * content 实时作为 chunk 事件转发给前端；tool_calls 累积后返回。
  * @returns {Promise<{assistantMessage, toolCalls, error?}>}
  */
-async function streamAgentStep(port, settings, messages, signal, tools) {
+async function streamAgentStep(port, settings, messages, signal, tools, emit) {
   const url = settings.baseUrl.replace(/\/+$/, '') + '/chat/completions';
   const resp = await fetch(url, {
     method: 'POST',
@@ -144,7 +174,7 @@ async function streamAgentStep(port, settings, messages, signal, tools) {
       const delta = choice.delta || {};
       if (delta.content) {
         contentAcc += delta.content;
-        port.postMessage({ type: 'chunk', text: delta.content });
+        (emit || ((event) => port.postMessage(event)))({ type: 'chunk', text: delta.content });
       }
       if (delta.tool_calls) {
         for (const tc of delta.tool_calls) {
@@ -180,7 +210,10 @@ async function streamAgentStep(port, settings, messages, signal, tools) {
  * 直到模型给出最终文本回复（流式推送）或达到最大步数。
  */
 async function runAgentStream(port, payload, settings, book, signal, tabId) {
-  const ctx = { book, settings, page: payload.page || '', tabId };
+  const runId = payload.runId || 'run-' + Date.now().toString(36);
+  const sessionApprovedTools = new Set();
+  const emit = (event) => port.postMessage(Object.assign({ runId }, event));
+  const ctx = { book, settings, page: payload.page || '', pageUrl: payload.pageUrl || '', pageTitle: payload.pageTitle || '', tabId };
   const tools = await collectAgentTools(settings);
   const instruction = payload.question || payload.command || payload.text || '';
   const selectedText = payload.text || '';
@@ -200,31 +233,44 @@ async function runAgentStream(port, payload, settings, book, signal, tabId) {
   messages.push({ role: 'user', content: userParts.join('\n\n') });
 
   for (let iter = 0; iter < AGENT_MAX_ITER; iter++) {
-    const step = await streamAgentStep(port, settings, messages, signal, tools);
+    const step = await streamAgentStep(port, settings, messages, signal, tools, emit);
     if (step.error) {
-      port.postMessage({ type: 'error', error: step.error });
+      emit({ type: 'error', error: step.error });
       return;
     }
     messages.push(step.assistantMessage);
 
     if (step.toolCalls.length) {
       for (const tc of step.toolCalls) {
-        const res = await executeAnyTool(tc.name, tc.args, ctx);
-        if (res.citations) {
-          port.postMessage({ type: 'citations', citations: res.citations });
+        const callId = tc.id || 'tool-' + iter + '-' + Math.random().toString(36).slice(2, 8);
+        let res;
+        if (settings.toolApproval !== false && toolNeedsApproval(tc.name) && !sessionApprovedTools.has(tc.name)) {
+          const decision = await waitForToolApproval(port, callId, tc.name, tc.args, signal, runId);
+          if (decision === 'session') sessionApprovedTools.add(tc.name);
+          if (decision !== 'once' && decision !== 'session') {
+            res = { result: '用户未批准执行工具「' + tc.name + '」，请不要执行该操作；可说明原因或给出替代方案。' };
+            emit({ type: 'tool-result', callId, name: tc.name, status: 'rejected', result: res.result });
+          }
         }
-        port.postMessage({ type: 'tool', name: tc.name, args: tc.args, result: res.result });
+        if (!res) {
+          emit({ type: 'tool-call', callId, name: tc.name, args: tc.args, requiresApproval: false, risk: getToolMetadata(tc.name).risk });
+          res = await executeAnyTool(tc.name, tc.args, ctx);
+          emit({ type: 'tool-result', callId, name: tc.name, status: 'completed', result: res.result });
+        }
+        if (res.citations) {
+          emit({ type: 'citations', citations: res.citations });
+        }
         messages.push({ role: 'tool', tool_call_id: tc.id, content: res.result });
       }
       continue;
     }
 
-    port.postMessage({ type: 'end' });
+    emit({ type: 'end' });
     return;
   }
 
-  port.postMessage({ type: 'chunk', text: '\n\n（已达到最大推理步数，已停止）' });
-  port.postMessage({ type: 'end' });
+  emit({ type: 'chunk', text: '\n\n（已达到最大推理步数，已停止）' });
+  emit({ type: 'end' });
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -263,6 +309,8 @@ chrome.runtime.onConnect.addListener((port) => {
 
   port.onMessage.addListener(async (payload) => {
     try {
+      // 工具审批消息由 waitForToolApproval 的临时监听器处理，不能作为新的对话请求。
+      if (payload && payload.type === 'tool-approval') return;
       const settings = await getAISettings();
       if (!settings.apiKey) {
         port.postMessage({ type: 'error', needSetup: true, error: '尚未配置 API Key，请点击插件图标 → 设置页填写。' });

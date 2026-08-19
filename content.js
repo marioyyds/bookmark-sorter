@@ -22,6 +22,8 @@
   let pendingAiMsg = null;
   let pendingContentEl = null;
   let pendingStarted = false;
+  let pendingParts = [];
+  let activeRunId = null;
   let currentCitations = null; // 当前回答的引用来源元数据
   const CONV_KEY = 'kbConversation';
 
@@ -199,8 +201,9 @@
     .p-foot .stop-btn:hover { border-color: #e74c3c; color: #fff; background: #e74c3c; }
     .panel.dark .p-foot .stop-btn { border-color: #e74c3c; color: #e74c3c; }
     .panel.dark .p-foot .stop-btn:hover { color: #fff; background: #e74c3c; }
-    .cmd-box { display: flex; gap: 6px; padding: 8px 12px; border-top: 1px solid #e2e5ea; align-items: stretch; flex-shrink: 0; }
-    .panel.dark .cmd-box { border-color: #3a3f46; }
+    .cmd-area { padding: 8px 12px; border-top: 1px solid #e2e5ea; flex-shrink: 0; }
+    .cmd-box { display: flex; gap: 6px; align-items: stretch; }
+    .panel.dark .cmd-area { border-color: #3a3f46; }
     .cmd-input {
       flex: 1; resize: none; border: 1px solid #e2e5ea; border-radius: 8px;
       padding: 6px 10px; font-size: 13px; font-family: inherit; outline: none;
@@ -215,12 +218,10 @@
     }
     .cmd-send:hover { background: #3a7cc4; }
     .cmd-send:disabled { opacity: .5; cursor: not-allowed; }
-    .kb-ghost {
-      position: fixed; z-index: 2147483646;
-      color: #8b949e; opacity: .9; pointer-events: none;
-      white-space: pre-wrap; word-break: break-word;
-      user-select: none; overflow-wrap: anywhere;
-    }
+    .quick-prompts { display: flex; gap: 5px; flex-wrap: wrap; margin: 0 0 7px; }
+    .quick-prompt { border: 1px solid #c8d9ec; background: #f5f9fd; color: #3d6f9e; border-radius: 12px; padding: 3px 8px; font-size: 11px; cursor: pointer; }
+    .quick-prompt:hover { background: #e5f0fb; }
+    .panel.dark .quick-prompt { background: #293746; border-color: #3d5570; color: #9bc5eb; }
     .fab {
       position: fixed; right: 16px; top: 38%; z-index: 2147483646;
       width: 52px; height: 52px; border: 1px solid rgba(255,255,255,.45); border-radius: 50%;
@@ -271,18 +272,15 @@
     .panel.dark .agent-tool { color: #7db4e8; }
     .agent-tool-arg { color: inherit; opacity: .85; }
     .agent-content { min-height: 1px; }
+    .tool-approval { margin: 5px 0; padding: 8px; border: 1px solid #f0b35b; border-radius: 8px; background: #fff8ea; font-size: 12px; color: #6e4b13; }
+    .tool-approval-title { font-weight: 600; margin-bottom: 5px; }
+    .tool-approval-actions { display: flex; gap: 6px; }
+    .tool-approval button { border: 0; border-radius: 5px; padding: 4px 8px; cursor: pointer; font-size: 12px; }
+    .tool-approve { color: #fff; background: #3b82f6; }
+    .tool-approve-session { color: #fff; background: #2d9d78; }
+    .tool-reject { color: #6b7280; background: #e5e7eb; }
+    .panel.dark .tool-approval { background: #3a321f; border-color: #866323; color: #efd59a; }
   `;
-
-  // ---- 自动补全状态 ----
-  const ac = {
-    el: null,
-    ghostEl: null,
-    port: null,
-    text: '',
-    timer: null,
-    busy: false,
-    enabled: false,
-  };
 
   function ensureHost() {
     if (host) return;
@@ -382,7 +380,7 @@
   function fitPanelHeight() {
     if (!panel || !panelBody) return;
     if (panel._manualSize) return;
-    const maxH = window.innerHeight - (panel.classList.contains('docked') ? 80 : 24);
+    const maxH = Math.max(120, window.innerHeight - (panel.classList.contains('docked') ? 80 : 24));
     panel.style.height = 'auto';
     panelBody.style.height = 'auto';
     panelBody.style.flex = '';
@@ -392,11 +390,14 @@
       if (child !== panelBody && !child.classList.contains('resize-handle')) chromeH += child.offsetHeight;
     }
     const bodyNatH = panelBody.scrollHeight;
-    const bodyH = Math.max(40, Math.min(bodyNatH, maxH - chromeH));
+    // 快捷语句、输入区与底栏属于固定区域，优先为它们预留高度；
+    // 仅压缩可滚动的对话内容，避免底部“清空对话”被裁掉。
+    const bodyAvailableH = Math.max(0, maxH - chromeH);
+    const bodyH = Math.min(bodyNatH, bodyAvailableH);
     panelBody.style.flex = 'none';
     panelBody.style.height = bodyH + 'px';
     panelBody.style.overflowY = bodyNatH > bodyH ? 'auto' : 'hidden';
-    const totalH = Math.max(120, chromeH + bodyH);
+    const totalH = Math.min(maxH, Math.max(120, chromeH + bodyH));
     panel.style.height = totalH + 'px';
     if (panel.classList.contains('docked') && !panel._manualPos) {
       const h = panel.offsetHeight;
@@ -486,7 +487,7 @@
           if (!c) return match;
           const short = c.title.length > 16 ? c.title.slice(0, 16) + '…' : c.title;
           return (
-            '<button class="cite-badge" data-cite-id="' + escAttr(c.id) + '" title="在知识库中查看：' + escAttr(c.title) + '">' +
+            '<button class="cite-badge" data-cite-id="' + escAttr(c.id || '') + '" data-cite-source="' + escAttr(c.source || 'kb') + '" data-cite-url="' + escAttr(c.url || '') + '" data-cite-snippet="' + escAttr(c.snippet || '') + '" title="打开证据：' + escAttr(c.title) + '">' +
             '<span class="cite-idx">[' + idx + ']</span>' + escAttr(short) + '</button>'
           );
         });
@@ -666,7 +667,7 @@
         cites
           .map(
             (c) =>
-              '<button class="cite-badge" data-cite-id="' + escAttr(c.id) + '" title="在知识库中查看：' + escAttr(c.title) + '">' +
+              '<button class="cite-badge" data-cite-id="' + escAttr(c.id || '') + '" data-cite-source="' + escAttr(c.source || 'kb') + '" data-cite-url="' + escAttr(c.url || '') + '" data-cite-snippet="' + escAttr(c.snippet || '') + '" title="打开证据：' + escAttr(c.title) + '">' +
               '<span class="cite-idx">[' + c.index + ']</span>' + escAttr(c.title.length > 18 ? c.title.slice(0, 18) + '…' : c.title) + '</button>'
           )
           .join('') +
@@ -681,7 +682,12 @@
         if (m.role === 'user') {
           return '<div class="msg user">' + escHtml(m.content) + '</div>';
         }
-        return '<div class="msg ai">' + renderMarkdown(m.content || '', m.citations) + citeSourcesHtml(m.citations) + (m.content ? msgActionsHtml() : '') + '</div>';
+        const parts = Array.isArray(m.parts) ? m.parts : [];
+        const toolSteps = parts
+          .filter((p) => p.type === 'tool-call' || p.type === 'tool-result')
+          .map((p) => '<div class="agent-step">' + (p.type === 'tool-call' ? '🔧 ' : p.status === 'completed' ? '✓ 完成：' : '— 未执行：') + escHtml(p.name) + '</div>')
+          .join('');
+        return '<div class="msg ai"><div class="agent-steps">' + toolSteps + '</div>' + renderMarkdown(m.content || '', m.citations) + citeSourcesHtml(m.citations) + (m.content ? msgActionsHtml() : '') + '</div>';
       })
       .join('');
     // 关联原始文本，供操作栏复制使用
@@ -701,7 +707,6 @@
   function openPanel(x, y, docked) {
     removeBubble();
     removePanel();
-    hideGhost();
     if (fab) fab.classList.add('hidden');
 
     panel = document.createElement('div');
@@ -768,7 +773,30 @@
       const cite = e.target.closest('.cite-badge');
       if (cite) {
         const id = cite.getAttribute('data-cite-id');
-        if (id) {
+        const source = cite.getAttribute('data-cite-source');
+        const url = cite.getAttribute('data-cite-url');
+        if (source === 'page') {
+          const snippet = cite.getAttribute('data-cite-snippet') || '';
+          let found = false;
+          if (snippet) {
+            const target = snippet.replace(/\s+/g, ' ').trim().slice(0, 100);
+            const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+            let node;
+            while ((node = walker.nextNode())) {
+              if (node.nodeValue.replace(/\s+/g, ' ').includes(target)) {
+                node.parentElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                const old = node.parentElement.style.outline;
+                node.parentElement.style.outline = '2px solid #4a90d9';
+                setTimeout(() => (node.parentElement.style.outline = old), 1800);
+                found = true;
+                break;
+              }
+            }
+          }
+          if (!found) window.scrollTo({ top: 0, behavior: 'smooth' });
+        } else if (url) {
+          window.open(url, '_blank', 'noopener');
+        } else if (id) {
           chrome.runtime.sendMessage({ type: 'openManager', focusId: id });
         }
       }
@@ -781,6 +809,15 @@
       panelBody.scrollTop = panelBody.scrollHeight;
     });
 
+    const cmdArea = document.createElement('div');
+    cmdArea.className = 'cmd-area';
+    const approvalArea = document.createElement('div');
+    approvalArea.className = 'tool-approval';
+    approvalArea.style.display = 'none';
+    cmdArea.appendChild(approvalArea);
+    const quickWrap = document.createElement('div');
+    quickWrap.className = 'quick-prompts';
+    cmdArea.appendChild(quickWrap);
     const cmdWrap = document.createElement('div');
     cmdWrap.className = 'cmd-box';
     const cmdInput = document.createElement('textarea');
@@ -792,7 +829,24 @@
     sendBtn.textContent = '发送';
     cmdWrap.appendChild(cmdInput);
     cmdWrap.appendChild(sendBtn);
-    panel.appendChild(cmdWrap);
+    cmdArea.appendChild(cmdWrap);
+    panel.appendChild(cmdArea);
+
+    getAISettings().then((s) => {
+      quickWrap.innerHTML = '';
+      (s.quickPrompts || AI_SETTINGS_DEFAULTS.quickPrompts || []).slice(0, 12).forEach((prompt) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'quick-prompt';
+        b.textContent = prompt;
+        b.addEventListener('click', () => {
+          if (streaming) return;
+          run(prompt);
+        });
+        quickWrap.appendChild(b);
+      });
+      fitPanelHeight();
+    });
 
     const foot = document.createElement('div');
     foot.className = 'p-foot';
@@ -863,6 +917,7 @@
       pendingContentEl = null;
       pendingStarted = false;
       pendingAcc = '';
+      pendingParts = [];
     }
 
     function interrupt() {
@@ -895,6 +950,7 @@
 
     function run(instruction) {
       closePort();
+      activeRunId = 'run-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 7);
       lastResponse = '';
       conversation.push({ role: 'user', content: instruction });
       const userMsg = document.createElement('div');
@@ -925,15 +981,41 @@
       port = chrome.runtime.connect({ name: 'ai-stream' });
       const conn = port;
       conn.onMessage.addListener((resp) => {
+        if (resp.runId && resp.runId !== activeRunId) return;
         if (resp.type === 'citations') {
           currentCitations = resp.citations || null;
-        } else if (resp.type === 'tool') {
+        } else if (resp.type === 'tool-call') {
+          pendingParts.push({ type: 'tool-call', callId: resp.callId, name: resp.name, args: resp.args || {}, risk: resp.risk || 'unknown' });
           const step = document.createElement('div');
           step.className = 'agent-step';
           const argStr = resp.args && resp.args.query ? resp.args.query : resp.args && resp.args.id ? resp.args.id : '';
           step.innerHTML =
             '<span class="agent-tool">🔧 ' + escHtml(resp.name) + '</span>' +
             (argStr ? '<span class="agent-tool-arg">：' + escHtml(argStr) + '</span>' : '');
+          stepsEl.appendChild(step);
+          if (resp.requiresApproval) {
+            const detail = resp.args && Object.keys(resp.args).length ? ' 参数：' + JSON.stringify(resp.args) : '';
+            approvalArea.innerHTML =
+              '<div class="tool-approval-title">此操作需要你的确认</div>' +
+              '<div>Agent 请求执行 <b>' + escHtml(resp.name) + '</b>' + escHtml(detail) + '</div>' +
+              '<div class="tool-approval-actions"><button class="tool-approve">允许一次</button><button class="tool-approve-session">之后允许</button><button class="tool-reject">拒绝</button></div>';
+            approvalArea.style.display = '';
+            const decide = (decision) => {
+              conn.postMessage({ type: 'tool-approval', callId: resp.callId, decision });
+              approvalArea.style.display = 'none';
+              approvalArea.innerHTML = '';
+            };
+            approvalArea.querySelector('.tool-approve').addEventListener('click', () => decide('once'));
+            approvalArea.querySelector('.tool-approve-session').addEventListener('click', () => decide('session'));
+            approvalArea.querySelector('.tool-reject').addEventListener('click', () => decide('reject'));
+          }
+          fitPanelHeight();
+          panelBody.scrollTop = panelBody.scrollHeight;
+        } else if (resp.type === 'tool-result') {
+          pendingParts.push({ type: 'tool-result', callId: resp.callId, name: resp.name, status: resp.status, result: resp.result || '' });
+          const step = document.createElement('div');
+          step.className = 'agent-step';
+          step.textContent = resp.status === 'completed' ? '✓ 工具已完成：' + resp.name : '— 工具未执行：' + resp.name;
           stepsEl.appendChild(step);
           fitPanelHeight();
           panelBody.scrollTop = panelBody.scrollHeight;
@@ -967,13 +1049,17 @@
                   const idAttr = String(c.id).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
                   const tAttr = String(t).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
                   const titleAttr = String(c.title).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
-                  return '<button class="cite-badge" data-cite-id="' + idAttr + '" title="在知识库中查看：' + titleAttr + '"><span class="cite-idx">[' + c.index + ']</span>' + tAttr + '</button>';
+                  const sourceAttr = String(c.source || 'kb').replace(/"/g, '&quot;');
+                  const urlAttr = String(c.url || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+                  const snippetAttr = String(c.snippet || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+                  return '<button class="cite-badge" data-cite-id="' + idAttr + '" data-cite-source="' + sourceAttr + '" data-cite-url="' + urlAttr + '" data-cite-snippet="' + snippetAttr + '" title="打开证据：' + titleAttr + '"><span class="cite-idx">[' + c.index + ']</span>' + tAttr + '</button>';
                 })
                 .join('');
             aiMsg.appendChild(srcWrap);
           }
           if (lastResponse) aiMsg.insertAdjacentHTML('beforeend', msgActionsHtml());
-          conversation.push({ role: 'assistant', content: lastResponse, citations: currentCitations });
+          pendingParts.push({ type: 'text', text: lastResponse });
+          conversation.push({ role: 'assistant', content: lastResponse, citations: currentCitations, parts: pendingParts });
           saveConversation();
           fitPanelHeight();
           currentCitations = null;
@@ -1001,9 +1087,12 @@
       });
       conn.postMessage({
         action: 'agent',
+        runId: activeRunId,
         question: instruction,
         text: lastText,
         page: pageText,
+        pageUrl: location.href,
+        pageTitle: document.title,
         history: conversation.slice(0, -1),
       });
     }
@@ -1021,6 +1110,12 @@
 
     sendBtn.addEventListener('click', send);
     cmdInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        removePanel();
+        return;
+      }
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         send();
@@ -1048,7 +1143,8 @@
     });
   }
 
-  // ---- 自动补全 ----
+  /* 网页输入框自动补全已移除；AI 输入仅保留在扩展对话面板内。 */
+  /*
   function isEditableElement(el) {
     if (!el || el.nodeType !== 1) return false;
     if (el.tagName === 'TEXTAREA') return true;
@@ -1287,45 +1383,20 @@
     }, 600);
   }
 
+  */
   // ---- 事件绑定 ----
   document.addEventListener('mousedown', (e) => {
     if (host && e.composedPath().includes(host)) return;
     removeBubble();
   });
 
-  document.addEventListener('scroll', () => {
-    removeBubble();
-    hideGhost();
-  }, true);
-  window.addEventListener('resize', hideGhost);
-
-  document.addEventListener('focusin', () => hideGhost(), true);
-  document.addEventListener('blur', () => hideGhost(), true);
-
-  document.addEventListener('input', (e) => {
-    if (host && e.composedPath().includes(host)) return;
-    if (!ac.enabled) return;
-    const el = e.target;
-    if (!isEditableElement(el)) return;
-    if (el !== document.activeElement) return;
-    hideGhost();
-    scheduleCompletion(el);
-  }, true);
+  document.addEventListener('scroll', () => removeBubble(), true);
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-      hideGhost();
       removeBubble();
       if (panel) {
         removePanel();
-        return;
-      }
-    }
-    if (ac.ghostEl && ac.el === document.activeElement) {
-      if (e.key === 'Tab') {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        acceptGhost();
         return;
       }
     }
@@ -1363,7 +1434,6 @@
   // ---- 初始化 ----
   let pageContextEnabled = true;
   getAISettings().then((s) => {
-    ac.enabled = !!(s.apiKey && s.autocomplete !== false);
     pageContextEnabled = s.pageContext !== false;
   });
 

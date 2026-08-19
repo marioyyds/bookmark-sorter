@@ -117,12 +117,33 @@ const BUILTIN_TOOLS = [
   },
 ];
 
+// 工具本身声明风险等级，Agent 编排器据此决定是否需要用户确认。
+// 这与 Vercel AI 的 tool 定义思路一致，避免在后台维护另一份易漂移的工具名单。
+const TOOL_METADATA = {
+  search_knowledge_base: { risk: 'read' },
+  list_knowledge_base: { risk: 'read' },
+  get_entry: { risk: 'read' },
+  read_current_page: { risk: 'read' },
+  list_tabs: { risk: 'read' },
+  add_entry: { risk: 'write', requiresApproval: true },
+  remove_entry: { risk: 'destructive', requiresApproval: true },
+  open_tab: { risk: 'browser', requiresApproval: true },
+  fetch_webpage: { risk: 'network', requiresApproval: true },
+};
+
+function getToolMetadata(name) {
+  if (typeof name === 'string' && name.indexOf('mcp__') === 0) {
+    return { risk: 'external', requiresApproval: true };
+  }
+  return TOOL_METADATA[name] || { risk: 'unknown', requiresApproval: true };
+}
+
 const AGENT_SYSTEM_PROMPT = `你是一个具备工具调用能力的个人知识库 AI 助手。你可以使用以下工具：
 - 检索、列出、查看、增删用户的个人知识库（算法错题、技术文章、AI·Prompt、笔记）；
 - 读取当前浏览的网页正文（read_current_page）、列出/打开浏览器标签页、抓取外部网页（fetch_webpage）；
 - 连接用户配置的 MCP 服务器（工具名以 mcp__ 开头），用于访问更多外部能力。
 
-请优先用工具获取真实信息后再回答，不要编造不存在的内容。回答使用中文，可用 Markdown 排版；若引用了知识库检索结果，请用 [n] 标注来源编号。当用户只是闲聊或明确无需工具时，直接回答即可。`;
+请优先用工具获取真实信息后再回答，不要编造不存在的内容。回答使用中文，可用 Markdown 排版；凡是依据知识库、当前页面或第三方网页证据的句子，都必须在对应句末使用 [n] 标注来源编号，不要只在回答末尾集中列出引用。当用户只是闲聊或明确无需工具时，直接回答即可。`;
 
 /**
  * 执行单个工具调用
@@ -200,7 +221,9 @@ async function executeTool(name, args, ctx) {
         const text = await new Promise((resolve) => {
           chrome.tabs.sendMessage(tabId, { type: 'kbGetPageText' }, (r) => resolve(r && r.text ? r.text : ''));
         });
-        return { result: text ? '当前页面正文：\n' + text : '未能读取页面正文（内容脚本未注入或页面不支持）。' };
+        return text
+          ? { result: '当前页面正文：\n' + text, citations: [{ index: 1, source: 'page', title: ctx.pageTitle || '当前页面', url: ctx.pageUrl || '', snippet: text.slice(0, 180) }] }
+          : { result: '未能读取页面正文（内容脚本未注入或页面不支持）。' };
       } catch (e) {
         return { result: '读取页面失败：' + e.message };
       }
@@ -244,9 +267,10 @@ async function executeTool(name, args, ctx) {
         const raw = decoder.decode(buf);
         const truncated = buf.byteLength >= maxBytes;
         const text = stripHtml(raw).slice(0, 8000);
+        const finalUrl = resp.url || u;
         return {
-          result:
-            '网页正文（' + (resp.url || u) + '）：\n' + text + (truncated ? '\n（内容过大已截断）' : ''),
+          result: '网页正文（' + finalUrl + '）：\n' + text + (truncated ? '\n（内容过大已截断）' : ''),
+          citations: [{ index: 1, source: 'web', title: finalUrl, url: finalUrl, snippet: text.slice(0, 180) }],
         };
       } catch (e) {
         return {

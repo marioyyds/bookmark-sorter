@@ -53,9 +53,9 @@
         <input id="page-context" type="checkbox" class="switch">
       </label>
       <label class="field switch-field">
-        <span class="field-label">输入框 AI 自动补全</span>
-        <span class="hint">在网页的输入框/编辑器打字时，AI 在光标后显示灰色补全建议，按 Tab 接受</span>
-        <input id="autocomplete" type="checkbox" class="switch">
+        <span class="field-label">Agent 工具执行前确认</span>
+        <span class="hint">新增/删除知识库、打开网页、抓取外部网页及 MCP 工具调用前，请先确认。</span>
+        <input id="tool-approval" type="checkbox" class="switch">
       </label>
       <label class="field">
         <span class="field-label">翻译目标语言</span>
@@ -69,6 +69,12 @@
       <span class="hint">配置远程 MCP 服务器（Streamable HTTP），Agent 会自动连接并加载其工具（工具名以 mcp__ 开头）。<b>需把各服务器域名加入 manifest.json 的 host_permissions</b>，否则无法跨域访问。</span>
       <div id="mcp-list" class="mcp-list"></div>
       <button id="mcp-add" class="ghost-btn" type="button">+ 添加服务器</button>
+    </section>
+
+    <section class="card">
+      <h2><span class="ico">⚡</span> 对话快捷语句</h2>
+      <span class="hint">显示在 AI 对话框输入区上方，点击后直接发送。每行一条，最多 12 条。</span>
+      <textarea id="quick-prompts" rows="5" placeholder="总结全文&#10;翻译成中文&#10;解释这段内容"></textarea>
     </section>
 
     <div class="actions">

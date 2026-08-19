@@ -327,8 +327,10 @@ const AI_SETTINGS_DEFAULTS = {
   baseUrl: 'https://api.deepseek.com',
   ragEnabled: true,
   targetLang: '中文',
-  autocomplete: true,
   pageContext: true,
+  // Cline 风格：可能改变数据、浏览器状态或调用外部 MCP 的工具必须先由用户确认。
+  toolApproval: true,
+  quickPrompts: ['总结全文', '翻译成中文', '解释这段内容', '提炼关键要点'],
   mcpServers: [],
 };
 
@@ -444,10 +446,12 @@ function buildCitations(relevantItems, isOverview) {
   if (!relevantItems || !relevantItems.length) return null;
   return relevantItems.map((it, i) => ({
     index: i + 1,
+    source: 'kb',
     id: it.id,
     title: it.title || '未命名',
     type: it.type || 'wrong',
     url: it.url || '',
+    snippet: it.note ? String(it.note).slice(0, 180) : String(it.title || '').slice(0, 180),
     isOverview: !!isOverview,
   }));
 }
@@ -551,7 +555,7 @@ function buildAiMessages(action, payload, settings, book) {
       {
         role: 'system',
         content:
-          '你是一个强大的 AI 助手，能执行用户的各种指令：翻译、改写、解释、总结、生成代码、补全内容、润色文档等。回答时应结合用户提供的整个页面内容理解上下文，而不只局限于选中的文字。请严格按指令执行，输出清晰的结果。若指令涉及代码，请直接给出完整代码；若涉及改写/翻译，直接给出结果。可使用 Markdown 排版。',
+          '你是一个强大的 AI 助手，能执行用户的各种指令：翻译、改写、解释、总结、生成代码、润色文档等。回答时应结合上下文。凡是依据页面、知识库或第三方网页证据的句子，都必须在对应句末使用 [n] 标注来源，不要只在末尾集中列出引用。请严格按指令执行，输出清晰结果。可使用 Markdown 排版。',
       },
     ];
     for (const h of history) {

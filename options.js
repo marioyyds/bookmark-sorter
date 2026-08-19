@@ -7,8 +7,9 @@ async function load() {
   $('base-url').value = s.baseUrl;
   $('rag-enabled').checked = !!s.ragEnabled;
   $('target-lang').value = s.targetLang;
-  $('autocomplete').checked = s.autocomplete !== false;
   $('page-context').checked = s.pageContext !== false;
+  $('tool-approval').checked = s.toolApproval !== false;
+  $('quick-prompts').value = (s.quickPrompts || AI_SETTINGS_DEFAULTS.quickPrompts).join('\n');
   renderMcp(s.mcpServers || []);
 }
 
@@ -53,8 +54,9 @@ $('save-btn').addEventListener('click', async () => {
     baseUrl: $('base-url').value.trim().replace(/\/+$/, '') || AI_SETTINGS_DEFAULTS.baseUrl,
     ragEnabled: $('rag-enabled').checked,
     targetLang: $('target-lang').value.trim() || AI_SETTINGS_DEFAULTS.targetLang,
-    autocomplete: $('autocomplete').checked,
     pageContext: $('page-context').checked,
+    toolApproval: $('tool-approval').checked,
+    quickPrompts: $('quick-prompts').value.split(/\r?\n/).map((x) => x.trim()).filter(Boolean).slice(0, 12),
     mcpServers: collectMcp(),
   };
   await chrome.storage.local.set({ [AI_SETTINGS_KEY]: settings });
