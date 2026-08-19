@@ -221,9 +221,20 @@ async function executeTool(name, args, ctx) {
         const text = await new Promise((resolve) => {
           chrome.tabs.sendMessage(tabId, { type: 'kbGetPageText' }, (r) => resolve(r && r.text ? r.text : ''));
         });
-        return text
-          ? { result: '当前页面正文：\n' + text, citations: [{ index: 1, source: 'page', title: ctx.pageTitle || '当前页面', url: ctx.pageUrl || '', snippet: text.slice(0, 180) }] }
-          : { result: '未能读取页面正文（内容脚本未注入或页面不支持）。' };
+        if (!text) return { result: '未能读取页面正文（内容脚本未注入或页面不支持）。' };
+        const chunks = splitIntoChunks(text, 600, 6);
+        const result =
+          chunks.length > 1
+            ? '当前页面正文（分块，可引用 [n]）：\n' + chunks.map((c, i) => '[' + (i + 1) + '] ' + c).join('\n\n')
+            : '当前页面正文：\n' + text;
+        const citations = chunks.map((c, i) => ({
+          index: i + 1,
+          source: 'page',
+          title: c.replace(/\s+/g, ' ').trim().slice(0, 40),
+          url: ctx.pageUrl || '',
+          snippet: c,
+        }));
+        return { result, citations };
       } catch (e) {
         return { result: '读取页面失败：' + e.message };
       }
@@ -328,6 +339,42 @@ function decodeBuffer(buf, contentType) {
   } catch (e) {
     return new TextDecoder('utf-8');
   }
+}
+
+function splitIntoChunks(text, size, max) {
+  const s = String(text || '').trim();
+  if (!s) return [];
+  const paras = s.split(/\n+/).map((p) => p.trim()).filter(Boolean);
+  if (!paras.length) return [s.slice(0, size)];
+
+  const chunks = [];
+  let buf = '';
+  const push = (str) => {
+    const t = str.replace(/\n+/g, ' ').replace(/[ \t]{2,}/g, ' ').trim();
+    if (!t || chunks.length >= max) return;
+    if (t.length > size * 1.5) {
+      const parts = t.match(new RegExp('.{1,' + size + '}', 'g')) || [t];
+      for (const pt of parts) {
+        if (chunks.length >= max) break;
+        chunks.push(pt.trim());
+      }
+    } else {
+      chunks.push(t);
+    }
+  };
+
+  for (const p of paras) {
+    const candidate = buf ? buf + '\n\n' + p : p;
+    if (buf && candidate.length > size) {
+      push(buf);
+      buf = p;
+      if (chunks.length >= max) break;
+    } else {
+      buf = candidate;
+    }
+  }
+  push(buf);
+  return chunks.slice(0, max);
 }
 
 function stripHtml(html) {

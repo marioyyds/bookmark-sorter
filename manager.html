@@ -17,6 +17,7 @@
 
   <div class="bulk-bar hidden" id="bulk-bar">
     <span class="bulk-count" id="bulk-count">0 项已选</span>
+    <button class="mini" id="bulk-select-all-btn">全选</button>
     <button class="mini danger" id="bulk-delete-btn">删除选中</button>
     <button class="mini" id="bulk-cancel-btn">取消</button>
   </div>
@@ -54,7 +55,7 @@
   </div>
 
   <main id="list" class="list"></main>
-  <p id="empty" class="empty hidden">没有匹配的内容</p>
+  <div id="empty" class="empty hidden"></div>
 
   <div class="confirm-overlay hidden" id="confirm-overlay">
     <div class="confirm-dialog">

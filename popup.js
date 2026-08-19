@@ -123,9 +123,21 @@ $('add-btn').addEventListener('click', async () => {
   });
   await loadCache();
   $('add-exists').classList.remove('hidden');
-  $('add-btn').textContent = '更新';
+  $('add-btn').textContent = '已保存 ✓';
   renderList();
   toast('已收录到知识库');
+  setTimeout(() => {
+    $('add-btn').textContent = '更新';
+  }, 1400);
+});
+
+['tags-input', 'note-input'].forEach((id) => {
+  $(id).addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      $('add-btn').click();
+    }
+  });
 });
 
 document.querySelector('#add-panel .type-group').addEventListener('click', (e) => {

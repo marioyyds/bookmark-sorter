@@ -20,6 +20,8 @@
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   --shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.1);
   --danger: #e74c3c;
+  --success: #27ae60;
+  --focus-ring: rgba(74, 144, 217, 0.4);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -31,7 +33,7 @@
     --card: #26292e;
     --text: #e3e5e8;
     --text-sub: #9aa0a8;
-    --text-faint: #6b7077;
+    --text-faint: #7d838b;
     --border: #3a3f46;
     --note-bg: #2f3339;
     --star-on: #f5b942;
@@ -39,6 +41,7 @@
     --shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
     --shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.45);
     --danger: #e5604f;
+    --focus-ring: rgba(91, 155, 224, 0.55);
   }
 }
 
@@ -60,7 +63,7 @@ input:focus-visible,
 select:focus-visible,
 textarea:focus-visible,
 [tabindex]:focus-visible {
-  outline: 3px solid var(--primary-soft);
+  outline: 3px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -467,7 +470,23 @@ header h1 {
   text-align: center;
   color: var(--text-faint);
   font-size: 12px;
-  padding: 28px 0;
+  padding: 32px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.empty-ico {
+  font-size: 34px;
+  line-height: 1;
+  opacity: 0.85;
+}
+
+.empty-hint {
+  font-size: 11px;
+  color: var(--text-faint);
+  opacity: 0.8;
 }
 
 footer {

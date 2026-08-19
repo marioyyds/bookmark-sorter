@@ -25,6 +25,7 @@
   let pendingParts = [];
   let activeRunId = null;
   let currentCitations = null; // 当前回答的引用来源元数据
+  let citeHighlights = []; // 页面内引用高亮的浮层元素数组（绝对定位覆盖，不改动页面 DOM）
   const CONV_KEY = 'kbConversation';
 
   // 提取页面正文，作为指令的上下文
@@ -106,8 +107,14 @@
       user-select: none; flex-shrink: 0;
     }
     .panel.dark .p-text { color: #9aa0a8; border-color: #3a3f46; }
-    .p-body { padding: 10px 12px; overflow-y: auto; flex: 1 1 auto; font-size: 13px; line-height: 1.7; color: #333; word-break: break-word; min-height: 0; }
-    .panel.dark .p-body { color: #e3e5e8; }
+    .p-body { padding: 10px 12px; overflow-y: auto; flex: 1 1 auto; font-size: 13px; line-height: 1.7; color: #333; word-break: break-word; min-height: 0; scrollbar-width: thin; scrollbar-color: #d5d9e0 transparent; }
+    .p-body::-webkit-scrollbar { width: 8px; }
+    .p-body::-webkit-scrollbar-thumb { background: #d5d9e0; border-radius: 999px; }
+    .p-body::-webkit-scrollbar-thumb:hover { background: #b8bec6; }
+    .p-body::-webkit-scrollbar-track { background: transparent; }
+    .panel.dark .p-body { color: #e3e5e8; scrollbar-color: #3a3f46 transparent; }
+    .panel.dark .p-body::-webkit-scrollbar-thumb { background: #3a3f46; }
+    .panel.dark .p-body::-webkit-scrollbar-thumb:hover { background: #4a5058; }
     .p-body.loading { color: #999; }
     .panel.dark .p-body.loading { color: #9aa0a8; }
     .p-body.error { color: #e74c3c; }
@@ -239,6 +246,7 @@
     .user-actions button { border: none; background: none; color: #98a0aa; font-size: 11.5px; cursor: pointer; padding: 2px 7px; border-radius: 6px; font-family: inherit; }
     .user-actions button:hover { background: rgba(0,0,0,.06); color: #4a90d9; }
     .panel.dark .user-actions button:hover { background: rgba(255,255,255,.08); color: #6aa5e0; }
+    @media (hover: none) { .msg-actions, .user-actions { opacity: 1; } }
     .fab::before { content: ''; position: absolute; inset: 5px; border: 1px solid rgba(255,255,255,.2); border-radius: 50%; pointer-events: none; }
     .fab::after { content: ''; position: absolute; right: -2px; bottom: 2px; width: 10px; height: 10px; border-radius: 50%; background: #52d38a; border: 2px solid #fff; }
     .fab:hover { transform: translateY(-2px) scale(1.06); filter: saturate(1.08); box-shadow: 0 11px 26px rgba(45,105,165,.46), inset 0 1px 1px rgba(255,255,255,.4); }
@@ -335,6 +343,7 @@
 
   function removePanel() {
     closePort();
+    clearCiteHighlight();
     if (panel) {
       panel.remove();
       panel = null;
@@ -719,6 +728,124 @@
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
+  // ---- 页面内引用定位与高亮 ----
+  function clearCiteHighlight() {
+    citeHighlights.forEach((el) => {
+      if (el && el.parentNode) el.parentNode.removeChild(el);
+    });
+    citeHighlights = [];
+  }
+
+  // 把页面所有可见文本节点按「去除所有空白」拼接成扁平文本，并记录每个字符对应的
+  // (节点, 偏移)。这样无论 innerText 与 DOM 在换行/空格/内联元素拆分上的差异，
+  // 都能用子串查找精确定位。跳过脚本/样式/代码块，避免误匹配到代码。
+  function buildPageCharMap() {
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    let n;
+    const charNode = [];
+    const charOffset = [];
+    let text = '';
+    while ((n = walker.nextNode())) {
+      const p = n.parentElement;
+      if (!p || p.closest('script,style,noscript,svg,iframe,pre,code,kbd,samp,#__kb-ai-host')) continue;
+      const v = n.nodeValue || '';
+      for (let i = 0; i < v.length; i++) {
+        if (/\s/.test(v[i])) continue;
+        text += v[i];
+        charNode.push(n);
+        charOffset.push(i);
+      }
+    }
+    return { text, charNode, charOffset };
+  }
+
+  function rangeFromCharMap(start, length, map) {
+    if (length <= 0 || start + length > map.text.length) return null;
+    const sNode = map.charNode[start];
+    const sOff = map.charOffset[start];
+    const eNode = map.charNode[start + length - 1];
+    const eOff = map.charOffset[start + length - 1] + 1;
+    const range = document.createRange();
+    range.setStart(sNode, sOff);
+    range.setEnd(eNode, eOff);
+    return range;
+  }
+
+  // 用「去除空白后的子串」在页面中查找引用片段，返回 Range（可跨节点）
+  function findRangeBySubstr(map, snippet) {
+    const q = String(snippet || '').replace(/\s+/g, '');
+    if (!q) return null;
+
+    // 依次尝试：整段 → 前缀/中段/后缀窗口（80 字符），提升含代码块的片段的命中率
+    const candidates = [q];
+    if (q.length > 80) {
+      candidates.push(q.slice(0, 80));
+      candidates.push(q.slice(Math.floor(q.length / 2), Math.floor(q.length / 2) + 80));
+      candidates.push(q.slice(-80));
+    }
+    for (const cand of candidates) {
+      if (cand.length < 10) continue;
+      const idx = map.text.indexOf(cand);
+      if (idx >= 0) return rangeFromCharMap(idx, cand.length, map);
+    }
+    // 前缀逐级缩短回退
+    for (let len = Math.min(q.length, 80); len >= 10; len = Math.floor(len * 0.6)) {
+      const sub = q.slice(0, len);
+      const j = map.text.indexOf(sub);
+      if (j >= 0) return rangeFromCharMap(j, sub.length, map);
+    }
+    return null;
+  }
+
+  // 用绝对定位的浮层覆盖匹配文本，不改动页面 DOM（无空行、无列表编号/代码结构破坏）
+  function overlayRange(range) {
+    const overlays = [];
+    const dark = typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: dark)').matches;
+    const color = dark ? 'rgba(255,196,0,.42)' : 'rgba(255,196,0,.5)';
+    const sx = window.scrollX || 0;
+    const sy = window.scrollY || 0;
+    let rects;
+    try {
+      rects = Array.prototype.slice.call(range.getClientRects());
+    } catch (e) {
+      rects = [];
+    }
+    for (const r of rects) {
+      if (r.width <= 0 || r.height <= 0) continue;
+      const d = document.createElement('div');
+      d.style.cssText =
+        'position:absolute;left:' + (r.left + sx) + 'px;top:' + (r.top + sy) + 'px;' +
+        'width:' + r.width + 'px;height:' + r.height + 'px;' +
+        'background-color:' + color + ';border-radius:2px;pointer-events:none;z-index:2147483646;';
+      document.body.appendChild(d);
+      overlays.push(d);
+    }
+    return overlays;
+  }
+
+  // 在页面中查找引用片段并高亮精确匹配的文本，滚动到该位置
+  function findAndHighlightCitation(snippet) {
+    clearCiteHighlight();
+
+    let range = null;
+    try {
+      range = findRangeBySubstr(buildPageCharMap(), snippet);
+    } catch (e) {
+      logError('citation locate failed', e);
+    }
+    if (!range) return false;
+
+    try {
+      citeHighlights = overlayRange(range);
+    } catch (e) {
+      logError('citation overlay failed', e);
+    }
+
+    const el = range.startContainer.parentElement;
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return true;
+  }
+
   function openPanel(x, y, docked) {
     removeBubble();
     removePanel();
@@ -730,7 +857,7 @@
 
     const head = document.createElement('div');
     head.className = 'p-head';
-    const logo = document.createElement('span');
+    const logo = document.createElement('img');
     logo.className = 'logo';
     logo.src = chrome.runtime.getURL('icons/recallflow-mark.svg');
     logo.alt = 'RecallFlow';
@@ -808,7 +935,7 @@
         });
         return;
       }
-      // 引用徽章点击：打开知识库管理器并定位到条目
+      // 引用徽章点击：跳转到对应位置并高亮
       const cite = e.target.closest('.cite-badge');
       if (cite) {
         const id = cite.getAttribute('data-cite-id');
@@ -816,23 +943,7 @@
         const url = cite.getAttribute('data-cite-url');
         if (source === 'page') {
           const snippet = cite.getAttribute('data-cite-snippet') || '';
-          let found = false;
-          if (snippet) {
-            const target = snippet.replace(/\s+/g, ' ').trim().slice(0, 100);
-            const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-            let node;
-            while ((node = walker.nextNode())) {
-              if (node.nodeValue.replace(/\s+/g, ' ').includes(target)) {
-                node.parentElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                const old = node.parentElement.style.outline;
-                node.parentElement.style.outline = '2px solid #4a90d9';
-                setTimeout(() => (node.parentElement.style.outline = old), 1800);
-                found = true;
-                break;
-              }
-            }
-          }
-          if (!found) window.scrollTo({ top: 0, behavior: 'smooth' });
+          findAndHighlightCitation(snippet);
         } else if (url) {
           window.open(url, '_blank', 'noopener');
         } else if (id) {
@@ -1487,6 +1598,7 @@
       return;
     }
     lastText = text;
+    clearCiteHighlight();
     pageText = pageContextEnabled ? extractPageText() : '';
     const range = sel.getRangeAt(0);
     const rect = range.getBoundingClientRect();

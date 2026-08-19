@@ -76,6 +76,9 @@ function renderBulkBar() {
   if (selectedIds.size > 0) {
     bar.classList.remove('hidden');
     $('bulk-count').textContent = selectedIds.size + ' 项已选';
+    const items = filtered();
+    const allSelected = items.length > 0 && items.every((it) => selectedIds.has(it.id));
+    $('bulk-select-all-btn').textContent = allSelected ? '取消全选' : '全选';
   } else {
     bar.classList.add('hidden');
   }
@@ -133,7 +136,14 @@ function itemHtml(it) {
 
 function render() {
   const items = filtered();
-  $('empty').classList.toggle('hidden', items.length > 0);
+  const emptyEl = $('empty');
+  emptyEl.classList.toggle('hidden', items.length > 0);
+  if (!items.length) {
+    const hasAny = Object.keys(bookCache).length > 0;
+    emptyEl.innerHTML = hasAny
+      ? '<span class="empty-ico">🔍</span><p>没有匹配的内容</p><p class="empty-hint">试试更换筛选条件或搜索词</p>'
+      : '<span class="empty-ico">📚</span><p>知识库还是空的</p><p class="empty-hint">点击「新建笔记」或收藏网页开始收录</p>';
+  }
   $('list').innerHTML = items.map(itemHtml).join('');
   renderTypeTabs();
   renderTagFilter();
@@ -194,14 +204,25 @@ function showConfirm(msg) {
     const no = $('confirm-no');
     const cleanup = (result) => {
       overlay.classList.add('hidden');
+      overlay.removeEventListener('click', onBackdrop);
+      document.removeEventListener('keydown', onKey);
       yes.removeEventListener('click', onYes);
       no.removeEventListener('click', onNo);
       resolve(result);
     };
     const onYes = () => cleanup(true);
     const onNo = () => cleanup(false);
+    const onBackdrop = (e) => {
+      if (e.target === overlay) cleanup(false);
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') cleanup(false);
+    };
     yes.addEventListener('click', onYes);
     no.addEventListener('click', onNo);
+    overlay.addEventListener('click', onBackdrop);
+    document.addEventListener('keydown', onKey);
+    yes.focus();
   });
 }
 
@@ -424,12 +445,24 @@ $('import-file').addEventListener('change', async (e) => {
 
 $('bulk-delete-btn').addEventListener('click', bulkDelete);
 
+$('bulk-select-all-btn').addEventListener('click', () => {
+  const items = filtered();
+  const allSelected = items.length > 0 && items.every((it) => selectedIds.has(it.id));
+  items.forEach((it) => {
+    if (allSelected) selectedIds.delete(it.id);
+    else selectedIds.add(it.id);
+  });
+  render();
+});
+
 $('bulk-cancel-btn').addEventListener('click', () => {
   selectedIds.clear();
   render();
 });
 
 document.addEventListener('keydown', (e) => {
+  // 确认弹窗打开时，交给弹窗自己的键盘处理，避免快捷键误触发
+  if (!$('confirm-overlay').classList.contains('hidden')) return;
   if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
     e.preventDefault();
     $('search').focus();
@@ -445,6 +478,11 @@ document.addEventListener('keydown', (e) => {
     bulkDelete();
   }
   if (e.key === 'Escape') {
+    if (editingNoteId) {
+      editingNoteId = null;
+      render();
+      return;
+    }
     if (selectedIds.size > 0) {
       selectedIds.clear();
       render();

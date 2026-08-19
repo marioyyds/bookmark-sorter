@@ -227,7 +227,30 @@ async function runAgentStream(port, payload, settings, book, signal, tabId) {
   }
   const userParts = [];
   if (selectedText) userParts.push('选中的文本：\n' + selectedText);
-  if (ctx.page) userParts.push('当前页面内容（作为背景上下文）：\n' + ctx.page);
+
+  // 将页面上下文分块并生成可点击的页面引用，让模型用 [n] 标注具体段落
+  const pageCitations = [];
+  if (ctx.page) {
+    splitIntoChunks(ctx.page, 1000, 6).forEach((c, i) => {
+      pageCitations.push({
+        index: i + 1,
+        source: 'page',
+        title: c.replace(/\s+/g, ' ').trim().slice(0, 40),
+        url: ctx.pageUrl || '',
+        snippet: c,
+      });
+    });
+    if (pageCitations.length) {
+      emit({ type: 'citations', citations: pageCitations });
+      userParts.push(
+        '当前页面内容（引用具体内容时请用 [n] 标注对应块）：\n' +
+          pageCitations.map((c) => '[' + c.index + '] ' + c.snippet).join('\n\n')
+      );
+    } else {
+      userParts.push('当前页面内容（作为背景上下文）：\n' + ctx.page);
+    }
+  }
+
   if (instruction) userParts.push('用户指令 / 问题：\n' + instruction);
   if (!userParts.length) userParts.push('（无输入）');
   messages.push({ role: 'user', content: userParts.join('\n\n') });
