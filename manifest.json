@@ -1,13 +1,13 @@
 {
   "manifest_version": 3,
-  "name": "个人知识库",
+  "name": "RecallFlow",
   "version": "3.0.0",
-  "description": "个人知识库 + RecallFlow：收录算法错题、技术文章、AI 工具与 Prompt、手动笔记，支持划词问答、翻译、解释与基于知识库的 RAG 检索问答。",
+  "description": "RecallFlow：收录算法错题、技术文章、AI 工具与 Prompt、手动笔记，支持划词问答、翻译、解释与基于知识库的 RAG 检索问答。",
   "permissions": ["tabs", "storage", "contextMenus"],
   "host_permissions": ["https://api.deepseek.com/*"],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "个人知识库",
+    "default_title": "RecallFlow",
     "default_icon": {
       "16": "icons/recallflow-mark.svg",
       "32": "icons/recallflow-mark.svg",
