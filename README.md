@@ -44,21 +44,21 @@ RecallFlow 把浏览器变成一个「**AI 之手**」，开箱即用：
 
 ### 操作 —— 页面命令系统（Agent 控制网页 DOM）
 
-Agent 可通过 `page_command` 工具对当前网页执行结构化命令（需审批），也可由用户直接触发：
+Agent 通过一组细粒度页面工具控制网页元素（默认需审批），定位统一支持 `ref`（DOM 快照引用）、`selector`、`text` 和 `index`（重复结构选第 N 个）；点击/输入前会自动滚动到目标、等待可见可用并检测遮挡。底层命令也可由用户直接触发：
 
 | 命令 | 说明 |
 | --- | --- |
-| `highlight` | 高亮匹配文本（`text`）或元素（`selector`），不改动页面 DOM |
-| `clear_highlights` | 清除高亮 / 描边 / 临时样式 |
-| `scroll_to` | 滚动到目标文本/元素，或指定 `top`/`left` 坐标 |
-| `scroll_by` | 按 `x`/`y` 偏移滚动 |
-| `outline` | 用边框描边标注目标元素 |
-| `set_style` | 临时修改目标元素样式（可设 `duration` 自动还原） |
-| `click` | 点击目标元素 |
-| `get_text` | 读取目标元素的文本 |
+| `click_element` | 点击元素：滚动 + 等待可操作 + 完整指针/鼠标事件序列 |
+| `set_element_style` | 修改元素样式（字号/加粗/颜色等），可设 `duration` 自动还原 |
+| `highlight_text` | 高亮文本或元素，不改动页面 DOM |
+| `outline_element` | 描边标注目标元素（可自动消失） |
+| `get_element_text` | 读取目标元素文本 |
+| `scroll_to_element` | 滚动到目标元素/文本或指定坐标 |
+| `scroll_page` | 按偏移滚动页面 |
+| `clear_page_overlays` | 清除高亮 / 描边 / 临时样式 |
 
-- **AI 路径**：在对话里说「高亮这段文字 / 跳到那个标题 / 把这个按钮标出来」，Agent 会调用 `page_command`。
-- **用户路径 API**：`chrome.runtime.sendMessage({ type: 'pageCommand', command, params })`，后台转发到当前活动标签页。
+- **AI 路径**：在对话里说「高亮这段文字 / 跳到那个标题 / 把这个按钮标出来 / 把标题变大」，Agent 会调用对应独立工具。
+- **用户路径 API**：`chrome.runtime.sendMessage({ type: 'pageCommand', command, params })`（底层命令名），后台转发到当前活动标签页。
 - **工具审批**：增删知识库、打开/抓取网页、页面命令、调用 MCP 工具前会暂停确认（可在设置关闭）。
 
 ### 记忆 —— 本地知识库
@@ -88,9 +88,9 @@ Agent 可作为 **MCP 客户端**连接远程 MCP 服务器（Streamable HTTP）
 ### Agent 运行时可靠性
 
 - **统一工具注册表**：`lib/assistant/tools.js` 中的 `TOOL_REGISTRY` 是内置工具的单一来源；模型工具列表、权限策略、MCP 合并和参数校验都从它派生。
-- **DOM 快照与动作验证**：新增 `get_page_snapshot`；`click`、`type_text`、`select_option`、`check_box`、滚动等页面动作会在执行前后采集轻量快照，并返回 URL、正文、交互元素、滚动位置和验证结果。快照中的 `rf-*` 引用可直接传给这些工具或 `page_command` 的 `ref` 参数。
-- **表单与等待工具**：Agent 可使用 `type_text`、`press_key`、`select_option`、`check_box`、`wait_for_element` 和 `get_attribute` 完成表单操作、等待异步渲染和读取元素状态；写入类工具默认需要用户审批。
-- **跨标签页操作**：`open_tab` 会等待新页面内容脚本就绪并自动绑定后续操作；`list_tabs` 返回 `tabId`，可通过 `switch_tab` 切换后继续执行 DOM 工具；`page_command(click)` 点击带 `target="_blank"` 的链接时也会自动发现新标签页并绑定，同时在返回结果中附带新页面的标题、URL 与关键元素摘要，模型可直接据此判断完成，不必再次截图。
+- **DOM 快照与动作验证**：新增 `get_page_snapshot`；快照可穿透同源 iframe 与开放 shadow DOM，元素带唯一选择器（优先 `id` / `data-testid` / `name`，自动校验唯一性）、`rf-*` 引用、是否在视口等状态。`click_element`、`type_text`、`select_option`、`check_box`、滚动等页面动作会在执行前后采集轻量快照，并返回 URL、正文、交互元素、滚动位置和验证结果。
+- **表单与等待工具**：Agent 可使用 `type_text`、`press_key`、`select_option`、`check_box`、`wait_for_element` 和 `get_attribute` 完成表单操作、读取元素状态；`wait_for_element` 支持 `visible` / `enabled` / `text_contains` / `count`（匹配数量）/ `detached`（元素消失）/ `url_contains`（URL 变化）等条件；写入类工具默认需要用户审批。
+- **跨标签页操作**：`open_tab` 会等待新页面内容脚本就绪并自动绑定后续操作；`list_tabs` 返回 `tabId`，可通过 `switch_tab` 切换后继续执行 DOM 工具；`click_element` 点击后最长轮询 4.5 秒验证页面变化（SPA 异步渲染也能捕获），检测到带 `target="_blank"` 的新标签页会自动绑定，并在返回结果中附带新页面的标题、URL 与关键元素摘要，模型可直接据此判断完成，不必再次截图。
 - **意图路由**：`lib/assistant/intent-router.js` 在任务开始前把指令归类为「浏览器操作 / 知识库查询 / 资料研究 / 普通对话」，并据此提供工具白名单、推理轮数预算和完成指引——浏览器任务不会误调知识库检索或网页抓取；「继续 / 接着 / 好的」等承接语会继承上一轮意图。系统提示按实际可用工具动态生成，并明确禁止在文本里模拟 `<page_command>` 等 XML 伪工具调用。
 - **完成条件**：`complete_task(summary, evidence?)` 是终止性工具。模型确认目标达成（如目标页面标题/URL 已匹配、样式已修改、回答已给出）后调用它结束任务，不再空转 `list_tabs / switch_tab / get_page_snapshot`。
 - **对话时间线**：工具轮的过程叙述实时流式输出，并与工具步骤卡片在同一时间线交插呈现（叙述 → 工具 → 叙述），历史记录按相同顺序渲染；叙述段结束时自动移除流式光标。
@@ -141,7 +141,7 @@ bookmark-sorter/
 │   │   └── rag.js          # RAG 检索、引用元数据、AI 消息构建
 │   ├── assistant/          # AI 编排层：模型 / 工具 / MCP / Agent 循环
 │   │   ├── llm.js          # DeepSeek（OpenAI 兼容）调用与重试
-│   │   ├── tools.js        # 内置工具声明与执行（含 page_command）
+│   │   ├── tools.js        # 内置工具声明与执行（含细粒度页面工具）
 │   │   ├── intent-router.js # 意图路由：工具白名单 / 预算 / 完成指引
 │   │   ├── mcp.js          # MCP 客户端（Streamable HTTP）
 │   │   ├── agent-state.js  # Agent 任务与工具调用状态机

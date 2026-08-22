@@ -21,32 +21,32 @@ if (window.__kbAiLoaded) {
         return true;
       }
       if (msg && msg.type === 'kbTypeText') {
-        sendResponse(commands.typeText(msg.params || {}));
-        return false;
+        Promise.resolve(commands.typeText(msg.params || {})).then(sendResponse);
+        return true;
       }
       if (msg && msg.type === 'kbPressKey') {
-        sendResponse(commands.pressKey(msg.params || {}));
-        return false;
+        Promise.resolve(commands.pressKey(msg.params || {})).then(sendResponse);
+        return true;
       }
       if (msg && msg.type === 'kbSelectOption') {
-        sendResponse(commands.selectOption(msg.params || {}));
-        return false;
+        Promise.resolve(commands.selectOption(msg.params || {})).then(sendResponse);
+        return true;
       }
       if (msg && msg.type === 'kbCheckBox') {
-        sendResponse(commands.checkBox(msg.params || {}));
-        return false;
+        Promise.resolve(commands.checkBox(msg.params || {})).then(sendResponse);
+        return true;
       }
       if (msg && msg.type === 'kbWaitForElement') {
         commands.waitForElement(msg.params || {}).then(sendResponse);
         return true;
       }
       if (msg && msg.type === 'kbGetAttribute') {
-        sendResponse(commands.getAttribute(msg.params || {}));
-        return false;
+        Promise.resolve(commands.getAttribute(msg.params || {})).then(sendResponse);
+        return true;
       }
       if (msg && msg.type === 'kbPageCommand') {
-        sendResponse(commands.executePageCommand(msg.command, msg.params || {}));
-        return false;
+        Promise.resolve(commands.executePageCommand(msg.command, msg.params || {})).then(sendResponse);
+        return true;
       }
       return false;
     });
