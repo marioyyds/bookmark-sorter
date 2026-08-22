@@ -4,7 +4,7 @@
 
 # RecallFlow
 
-**浏览器里的统一 AI 助手** —— 让 AI 替你 **读 → 操作 → 记忆** 任何网页，帮你在信息过载的浏览器里高效工作。
+**浏览器里的统一 AI 助手**：让 AI 替你 **读 → 操作 → 记忆** 任何网页。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Microsoft%20Edge-blue.svg?style=flat-square)](https://www.microsoft.com/edge)
@@ -13,150 +13,64 @@
 
 ---
 
-## 为什么是 RecallFlow？
+## 它是谁、解决什么问题
 
-浏览器是你工作的**主要入口**——刷题、读文档、查资料、写代码，你每天要主动涉猎海量信息。信息过载的解法不是「收藏得更多」，而是让 AI 帮你把「读 → 理解 → 用起来」的每一步都变快。
-
-RecallFlow 把浏览器变成一个「**AI 之手**」，开箱即用：
+浏览器是刷题、读文档、查资料、写代码的主战场。信息过载的解法不是「收藏得更多」，而是把 **读 → 理解 → 用起来** 每一步都变快。RecallFlow 把浏览器变成一只「AI 之手」：
 
 | 一环 | 它替你做什么 |
 | --- | --- |
-| **读 (Read)** | 划选任意文字即问：翻译、解释、总结、补全，回答自动结合整页上下文，并用 RAG 检索你的历史收藏 |
-| **操作 (Operate)** | AI 能直接对网页执行结构化命令：高亮、定位、滚动、描边、点击、改样式——不再只是「读」，而是「干活」 |
-| **记忆 (Remember)** | 高亮的关键句、整理出的要点，一键沉淀进本地知识库；下次 AI 会基于它回答 |
+| **读 Read** | 划词即问：翻译、解释、总结；回答自动结合整页上下文与个人知识库（RAG） |
+| **操作 Operate** | 直接操控网页：点击、输入、滚动、高亮、改样式，跨标签页完成任务 |
+| **记忆 Remember** | 关键句与要点一键沉淀进本地知识库，下次 AI 基于它回答 |
 
 ![RecallFlow 价值闭环：读 → 操作 → 记忆](docs/assets/read-operate-remember.svg)
 
-**核心原则：隐私优先。** 数据保存在本地 `chrome.storage.local`，唯一外连是你自配的 DeepSeek API Key——知识库是你的私人记忆，不是平台的资产。
+**隐私优先**：数据全部保存在本地，唯一外连是你自配的 DeepSeek API Key。
 
-## 功能总览
+## 快速上手
 
-### 读 —— 划词 AI 助手
+1. **安装**：Edge 打开 `edge://extensions/` → 开启「开发人员模式」→「加载解压缩的扩展」→ 选择本目录
+2. **配置**：点击插件图标 → 设置，填入 DeepSeek API Key（不配置 Key 也不影响知识库功能）
+3. **使用**：选中网页文字 → 点「RecallFlow」气泡 → 输入指令，或直接点快捷语句
 
-- **划词悬浮**：选中任意文字出现「RecallFlow」气泡，点击展开对话
-- **自由指令**：不限定固定操作（「翻译成英文」「解释这段代码」「优化并补全」「写一份总结」），AI 基于选中文本执行
-- **多轮对话**：聊天流展示、可连续追问、记住上下文、自动保存、可一键清空
-- **结合整页内容**：回答自动参考当前网页正文（可在设置里开关）
-- **RAG 知识库检索**：自动把相关知识库条目作为上下文（可在设置里开关）
-- **中断生成**：流式回复过程可「停止」，已生成内容保留
-- **对话撤销**：可撤销某条指令及其后续回答，再从此前上下文继续
-- **对话快捷语句**：提供「总结全文」「翻译成中文」「划出页面关键信息」等快捷按钮，可自定义
+## 常用场景
 
-### 操作 —— 页面命令系统（Agent 控制网页 DOM）
-
-Agent 通过一组细粒度页面工具控制网页元素（默认需审批），定位统一支持 `ref`（DOM 快照引用）、`selector`、`text` 和 `index`（重复结构选第 N 个）；点击/输入前会自动滚动到目标、等待可见可用并检测遮挡。底层命令也可由用户直接触发：
-
-| 命令 | 说明 |
+| 场景 | 一句话 |
 | --- | --- |
-| `click_element` | 点击元素：滚动 + 等待可操作 + 完整指针/鼠标事件序列 |
-| `set_element_style` | 修改元素样式（字号/加粗/颜色等），可设 `duration` 自动还原 |
-| `highlight_text` | 高亮文本或元素，不改动页面 DOM |
-| `outline_element` | 描边标注目标元素（可自动消失） |
-| `get_element_text` | 读取目标元素文本 |
-| `scroll_to_element` | 滚动到目标元素/文本或指定坐标 |
-| `scroll_page` | 按偏移滚动页面 |
-| `clear_page_overlays` | 清除高亮 / 描边 / 临时样式 |
+| 划出页面关键信息 | 点快捷指令，AI 读完页面、半透明高亮关键句并输出要点总结 |
+| AI 操作网页 | 「把标题变大」「高亮这段文字」「滚动到评论区」「打开 B 站搜索视频」 |
+| 知识库问答 | 「我的收藏里有什么」「基于我收藏的错题讲这道题」 |
+| 一键剪藏 | 工具栏一键把文章 / 题目 / Prompt 存进本地知识库 |
 
-- **AI 路径**：在对话里说「高亮这段文字 / 跳到那个标题 / 把这个按钮标出来 / 把标题变大」，Agent 会调用对应独立工具。
-- **用户路径 API**：`chrome.runtime.sendMessage({ type: 'pageCommand', command, params })`（底层命令名），后台转发到当前活动标签页。
-- **工具审批**：增删知识库、打开/抓取网页、页面命令、调用 MCP 工具前会暂停确认（可在设置关闭）。
+## 功能亮点
 
-### 记忆 —— 本地知识库
+- **读**：划词悬浮、多轮对话、整页上下文、RAG 检索、流式中断、对话撤销、可自定义快捷语句
+- **操作**：点击 / 输入 / 滚动 / 高亮 / 改样式；自动等待页面就绪、识别遮挡，穿透 iframe 与 shadow DOM，点击新标签页自动接管
+- **记忆**：错题 / 文章 / Prompt / 笔记四类知识库，支持星级、标签、搜索、导入导出，Agent 可读写
+- **扩展**：支持 MCP 服务器，可接入文件系统、Notion 等外部能力（目标域名需加入 `manifest.json` 的 `host_permissions`）
+- **安全**：写操作默认逐次审批，可按类别开启自动批准
 
-| 类型 | 说明 |
-| --- | --- |
-| `算法错题` | 打开 LeetCode / 牛客 / 洛谷等题目页自动识别，标记错题星级 |
-| `技术文章` | 剪藏博客、论文、文档链接 |
-| `AI·Prompt` | 收藏 AI 工具、提示词、优质对话 |
-| `笔记想法` | 不依赖网页，手动写笔记 |
+## 技术亮点
 
-- **星级分级**：`★☆☆ 一般 / ★★☆ 重点 / ★★★ 高频`
-- **自定义标签**：逗号分隔打标签，支持按标签筛选
-- **统计与排序**：总数 + 各星级统计卡片，多维排序
-- **完整管理页**：类型 Tab、标签筛选、全文搜索、内联编辑、JSON 导入导出
-- **深色模式**：自动跟随系统；**数据迁移**：旧版「算法错题集」数据自动迁移
-- **Agent 可读可写**：AI 能检索、查看、新增、删除知识库条目
-
-### 扩展 —— 接入 MCP 服务器
-
-Agent 可作为 **MCP 客户端**连接远程 MCP 服务器（Streamable HTTP），自动加载其工具（工具名以 `mcp__` 开头），从而访问文件系统、联网抓取、Notion 等任意外部能力。
-
-- 设置页「MCP 服务器」卡片：填写 `标识`(英文)、`URL`(如 `https://host/mcp`)、可选 `Bearer Token`，保存即可。
-- 每次对话 Agent 会按需连接并拉取工具清单（缓存 5 分钟），在工具调用循环里统一调度内置与 MCP 工具。
-- **重要**：MV3 跨域限制要求把每个 MCP 服务器的源加入 `manifest.json` 的 `host_permissions`（如 `"https://host/*"`），否则后台无法发起请求。
-
-### Agent 运行时可靠性
-
-- **统一工具注册表**：`lib/assistant/tools.js` 中的 `TOOL_REGISTRY` 是内置工具的单一来源；模型工具列表、权限策略、MCP 合并和参数校验都从它派生。
-- **DOM 快照与动作验证**：新增 `get_page_snapshot`；快照可穿透同源 iframe 与开放 shadow DOM，元素带唯一选择器（优先 `id` / `data-testid` / `name`，自动校验唯一性）、`rf-*` 引用、是否在视口等状态。`click_element`、`type_text`、`select_option`、`check_box`、滚动等页面动作会在执行前后采集轻量快照，并返回 URL、正文、交互元素、滚动位置和验证结果。
-- **表单与等待工具**：Agent 可使用 `type_text`、`press_key`、`select_option`、`check_box`、`wait_for_element` 和 `get_attribute` 完成表单操作、读取元素状态；`wait_for_element` 支持 `visible` / `enabled` / `text_contains` / `count`（匹配数量）/ `detached`（元素消失）/ `url_contains`（URL 变化）等条件；写入类工具默认需要用户审批。
-- **跨标签页操作**：`open_tab` 会等待新页面内容脚本就绪并自动绑定后续操作；`list_tabs` 返回 `tabId`，可通过 `switch_tab` 切换后继续执行 DOM 工具；`click_element` 点击后最长轮询 4.5 秒验证页面变化（SPA 异步渲染也能捕获），检测到带 `target="_blank"` 的新标签页会自动绑定，并在返回结果中附带新页面的标题、URL 与关键元素摘要，模型可直接据此判断完成，不必再次截图。
-- **意图路由**：`lib/assistant/intent-router.js` 在任务开始前把指令归类为「浏览器操作 / 知识库查询 / 资料研究 / 普通对话」，并据此提供工具白名单、推理轮数预算和完成指引——浏览器任务不会误调知识库检索或网页抓取；「继续 / 接着 / 好的」等承接语会继承上一轮意图。系统提示按实际可用工具动态生成，并明确禁止在文本里模拟 `<page_command>` 等 XML 伪工具调用。
-- **完成条件**：`complete_task(summary, evidence?)` 是终止性工具。模型确认目标达成（如目标页面标题/URL 已匹配、样式已修改、回答已给出）后调用它结束任务，不再空转 `list_tabs / switch_tab / get_page_snapshot`。
-- **对话时间线**：工具轮的过程叙述实时流式输出，并与工具步骤卡片在同一时间线交插呈现（叙述 → 工具 → 叙述），历史记录按相同顺序渲染；叙述段结束时自动移除流式光标。
-
-例如“打开 B 站搜索视频”会按如下链路执行：`open_tab({url: "https://www.bilibili.com"})` → `get_page_snapshot` → `type_text` → `press_key`/`click` → `wait_for_element`。登录、验证码和风控页面仍需用户手动处理。
-
-- **Session 恢复**：Agent 每轮会把可恢复状态保存到 MV3 `chrome.storage.session`。重新使用相同 `runId` 发起 Agent 请求时，会恢复消息、工具计数和上下文；已完成/失败的 Session 不会被继续执行。
-- **卡死检测**：除最大轮数/工具数外，还会检测滑动窗口内的重复动作和连续无进展动作，先发出 `stuck-warning`，达到阈值后安全停止。出现可观察进展（新标签页、页面内容/URL 变化、等待匹配成功）会自动重置重复计数；只读观察工具（`get_page_snapshot` 等）比变更类工具更宽松，避免正常搜索/翻页流程被误判。
-
-## 安装方法 (Edge)
-
-1. 打开 Edge，地址栏输入 `edge://extensions/`
-2. 打开右上角「开发人员模式」开关
-3. 点击「加载解压缩的扩展」
-4. 选择本目录 `bookmark-sorter` 文件夹
-
-## 首次配置
-
-1. 点击插件图标 → 弹窗底部「设置」，或右键插件图标 →「选项」
-2. 填入 DeepSeek API Key（在 [platform.deepseek.com](https://platform.deepseek.com) 申请）
-3. 按需调整模型（默认 `deepseek-chat`）、翻译目标语言、RAG、Agent 工具审批与快捷语句
-4. 保存即可使用 AI 功能；**不配置 Key 也不影响**知识库的收录与检索
-
-## 使用
-
-| 场景 | 操作 |
-| --- | --- |
-| 快速收录 | 打开网页 → 点工具栏图标 → 选类型/星级 → 填标签备注 → 添加 |
-| 手动笔记 | 管理页点「新建笔记」 |
-| 划词 RecallFlow | 选中网页文字 → 点「RecallFlow」气泡 → 输入任意指令执行 |
-| AI 操作网页 | 在对话里说「高亮这段文字 / 跳到那个标题 / 把这个按钮标出来」 |
-| 划出关键信息 | 点击快捷指令「划出页面关键信息」，AI 在页面上高亮关键句子并输出要点总结 |
-| 知识库查询 | 划词后输入问题，开启 RAG 后 AI 结合你的收藏回答；直接问「知识库有什么内容」可查看全部条目 |
+- **统一工具注册表**：模型工具列表、权限策略、参数校验共用一份定义，不漂移
+- **意图路由**：浏览器 / 知识库 / 研究 / 对话自动分流，避免工具乱用；「继续 / 接着」继承上一轮意图
+- **明确收尾**：目标达成即调用 `complete_task` 结束任务，不空转
+- **对话时间线**：过程叙述与工具步骤交插呈现，边干边说
+- **可靠性**：Session 恢复、卡死检测、动作前后快照验证，SPA 异步渲染也能捕获变化
 
 ## 项目结构
 
-```
+```text
 bookmark-sorter/
-├── manifest.json           # MV3 清单（module SW + 内容脚本动态 import）
-├── background.js           # Service Worker 入口：AI 请求 / Agent 编排 / 消息转发
-├── content.js              # 内容脚本入口：动态 import() 加载 lib/ 模块
-├── popup.js / options.js / manager.js   # 各页面 ES Module 入口
+├── manifest.json / background.js / content.js   # MV3 扩展骨架
+├── popup.js / options.js / manager.js           # 弹窗 / 设置 / 管理页
 ├── lib/
-│   ├── shared/             # 跨层基础：常量 / 工具 / 存储 / 设置 / RAG
-│   │   ├── constants.js    # 类型、平台、星级、数据版本
-│   │   ├── utils.js        # 文本/HTML/排序/toast 等工具函数
-│   │   ├── store.js        # 知识库 CRUD 与旧版数据迁移
-│   │   ├── settings.js     # AI 设置默认值与读取
-│   │   └── rag.js          # RAG 检索、引用元数据、AI 消息构建
-│   ├── assistant/          # AI 编排层：模型 / 工具 / MCP / Agent 循环
-│   │   ├── llm.js          # DeepSeek（OpenAI 兼容）调用与重试
-│   │   ├── tools.js        # 内置工具声明与执行（含细粒度页面工具）
-│   │   ├── intent-router.js # 意图路由：工具白名单 / 预算 / 完成指引
-│   │   ├── mcp.js          # MCP 客户端（Streamable HTTP）
-│   │   ├── agent-state.js  # Agent 任务与工具调用状态机
-│   │   ├── agent.js        # Agent 主循环 + 工具审批
-│   │   ├── session-store.js # Agent Session 持久化与恢复
-│   │   └── stuck-detector.js # 卡死检测（重复 / 无进展）
-│   └── page/               # 页面层：正文 / 引用定位 / 命令 / 对话 UI
-│       ├── page-text.js    # 网页正文提取
-│       ├── citation.js     # 字符级引用定位 + 高亮浮层
-│       ├── commands.js     # 页面命令系统（8 种命令）
-│       └── chat.js         # 悬浮按钮 / 气泡 / 对话面板 UI
-├── docs/assets/            # 文档配图 + 插件与仓库 Logo
+│   ├── shared/        # 存储、设置、RAG、常量
+│   ├── assistant/     # Agent 循环、工具注册表、意图路由、MCP、卡死检测
+│   └── page/          # 正文提取、高亮浮层、页面命令、对话面板
+└── docs/assets/       # 文档配图与 Logo
 ```
 
 ## License
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
+[MIT](LICENSE)
