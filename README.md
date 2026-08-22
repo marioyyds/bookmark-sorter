@@ -1,62 +1,48 @@
 <p align="center">
-  <img src="./icons/recallflow-github-logo.svg" alt="RecallFlow logo" width="480">
+  <img src="./docs/assets/recallflow-github-logo.svg" alt="RecallFlow logo" width="480">
 </p>
 
 # RecallFlow
 
-**面向 AI 时代的个人知识库 + 网页 Agent** —— 统一收录算法错题、技术文章、AI Prompt 与笔记，并在任意网页上驱动 AI 完成划词问答、翻译、总结与结构化页面操作。
+**浏览器里的统一 AI 助手** —— 让 AI 替你 **读 → 操作 → 记忆** 任何网页，帮你在信息过载的浏览器里高效工作。
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Microsoft%20Edge-blue.svg?style=flat-square)](https://www.microsoft.com/edge)
 [![Manifest V3](https://img.shields.io/badge/Manifest-v3-blue.svg?style=flat-square)](manifest.json)
-[![GitHub Repo](https://img.shields.io/badge/Repo-GitHub-blue.svg?style=flat-square)](https://github.com/marioyyds/bookmark-sorter)
+[![GitHub Repo](https://img.shields.io/badge/Repo-GitHub-blue.svg?style=flat-square)](https://github.com/marioyyds/RecallFlow)
 
 ---
 
-## Why RecallFlow?
+## 为什么是 RecallFlow？
 
-管理知识和利用网页，通常要做两件麻烦事：**把信息收藏整理**、**靠人工在页面上划词、滚动、点击**。RecallFlow 把这两件都交给 AI 接起来，开箱即用：
+浏览器是你工作的**主要入口**——刷题、读文档、查资料、写代码，你每天要主动涉猎海量信息。信息过载的解法不是「收藏得更多」，而是让 AI 帮你把「读 → 理解 → 用起来」的每一步都变快。
 
-- **一键收录** — 打开网页即收藏，支持类型分类、星级、标签与全文搜索，数据全存本地。
-- **划词即问** — 选中任意文字即可让 AI 翻译、解释、总结、补全，回答自动结合整页上下文。
-- **RAG 知识库检索** — AI 基于你的收藏回答，而不是凭空猜测。
-- **网页 Agent 操作** — AI 能对当前页面直接执行高亮、滚动、描边、点击等结构化命令。
-- **MCP 扩展** — 连接自建/第三方 MCP 服务器，接入文件、联网、Notion 等任意工具。
-- **隐私优先** — 数据保存在本地 `chrome.storage.local`，仅 API Key 会连接 DeepSeek。
+RecallFlow 把浏览器变成一个「**AI 之手**」，开箱即用：
 
-## 功能
-
-### 知识库
-
-| 类型 | 说明 |
+| 一环 | 它替你做什么 |
 | --- | --- |
-| `算法错题` | 打开 LeetCode / 牛客 / 洛谷等题目页自动识别，标记错题星级 |
-| `技术文章` | 剪藏博客、论文、文档链接 |
-| `AI·Prompt` | 收藏 AI 工具、提示词、优质对话 |
-| `笔记想法` | 不依赖网页，手动写笔记 |
+| **读 (Read)** | 划选任意文字即问：翻译、解释、总结、补全，回答自动结合整页上下文，并用 RAG 检索你的历史收藏 |
+| **操作 (Operate)** | AI 能直接对网页执行结构化命令：高亮、定位、滚动、描边、点击、改样式——不再只是「读」，而是「干活」 |
+| **记忆 (Remember)** | 高亮的关键句、整理出的要点，一键沉淀进本地知识库；下次 AI 会基于它回答 |
 
-- **星级分级**：`★☆☆ 一般 / ★★☆ 重点 / ★★★ 高频`，点击星星即可评级
-- **自定义标签**：逗号分隔打标签，支持按标签筛选
-- **统计与排序**：总数 + 各星级统计卡片，多维排序
-- **完整管理页**：类型 Tab、标签筛选、全文搜索、内联编辑、JSON 导入导出
-- **深色模式**：自动跟随系统；**数据迁移**：旧版「算法错题集」数据自动迁移
+![RecallFlow 价值闭环：读 → 操作 → 记忆](docs/assets/read-operate-remember.svg)
 
-### RecallFlow（DeepSeek）
+**核心原则：隐私优先。** 数据保存在本地 `chrome.storage.local`，唯一外连是你自配的 DeepSeek API Key——知识库是你的私人记忆，不是平台的资产。
 
-- **右下角悬浮助手**：常驻「AI」圆形按钮，点击展开/收起对话面板
+## 功能总览
+
+### 读 —— 划词 AI 助手
+
 - **划词悬浮**：选中任意文字出现「RecallFlow」气泡，点击展开对话
 - **自由指令**：不限定固定操作（「翻译成英文」「解释这段代码」「优化并补全」「写一份总结」），AI 基于选中文本执行
 - **多轮对话**：聊天流展示、可连续追问、记住上下文、自动保存、可一键清空
-- **结合整页内容**：回答自动参考当前网页正文，而不只局限于选中的文字（可在设置里开关）
+- **结合整页内容**：回答自动参考当前网页正文（可在设置里开关）
 - **RAG 知识库检索**：自动把相关知识库条目作为上下文（可在设置里开关）
 - **中断生成**：流式回复过程可「停止」，已生成内容保留
-- **可审计工具流**：面板展示 Agent 工具调用开始/完成状态，文本与工具事件分离
-- **结构化对话记录**：保存文本、工具调用与结果，重开面板可回溯
 - **对话撤销**：可撤销某条指令及其后续回答，再从此前上下文继续
-- **工具审批**：增删知识库、打开/抓取网页、调用 MCP 工具前暂停确认（可在设置关闭）
 - **对话快捷语句**：提供「总结全文」「翻译成中文」等快捷按钮，可自定义
-- **自适应窗口**：悬浮模式下回复时高度随内容伸缩，贴合右下角
 
-### 页面命令系统（Agent 控制网页 DOM）
+### 操作 —— 页面命令系统（Agent 控制网页 DOM）
 
 Agent 可通过 `page_command` 工具对当前网页执行结构化命令（需审批），也可由用户直接触发：
 
@@ -73,8 +59,25 @@ Agent 可通过 `page_command` 工具对当前网页执行结构化命令（需�
 
 - **AI 路径**：在对话里说「高亮这段文字 / 跳到那个标题 / 把这个按钮标出来」，Agent 会调用 `page_command`。
 - **用户路径 API**：`chrome.runtime.sendMessage({ type: 'pageCommand', command, params })`，后台转发到当前活动标签页。
+- **工具审批**：增删知识库、打开/抓取网页、页面命令、调用 MCP 工具前会暂停确认（可在设置关闭）。
 
-### 接入 MCP 服务器（扩展 Agent 工具）
+### 记忆 —— 本地知识库
+
+| 类型 | 说明 |
+| --- | --- |
+| `算法错题` | 打开 LeetCode / 牛客 / 洛谷等题目页自动识别，标记错题星级 |
+| `技术文章` | 剪藏博客、论文、文档链接 |
+| `AI·Prompt` | 收藏 AI 工具、提示词、优质对话 |
+| `笔记想法` | 不依赖网页，手动写笔记 |
+
+- **星级分级**：`★☆☆ 一般 / ★★☆ 重点 / ★★★ 高频`
+- **自定义标签**：逗号分隔打标签，支持按标签筛选
+- **统计与排序**：总数 + 各星级统计卡片，多维排序
+- **完整管理页**：类型 Tab、标签筛选、全文搜索、内联编辑、JSON 导入导出
+- **深色模式**：自动跟随系统；**数据迁移**：旧版「算法错题集」数据自动迁移
+- **Agent 可读可写**：AI 能检索、查看、新增、删除知识库条目
+
+### 扩展 —— 接入 MCP 服务器
 
 Agent 可作为 **MCP 客户端**连接远程 MCP 服务器（Streamable HTTP），自动加载其工具（工具名以 `mcp__` 开头），从而访问文件系统、联网抓取、Notion 等任意外部能力。
 
@@ -103,24 +106,37 @@ Agent 可作为 **MCP 客户端**连接远程 MCP 服务器（Streamable HTTP）
 | 快速收录 | 打开网页 → 点工具栏图标 → 选类型/星级 → 填标签备注 → 添加 |
 | 手动笔记 | 管理页点「新建笔记」 |
 | 划词 RecallFlow | 选中网页文字 → 点「RecallFlow」气泡 → 输入任意指令执行 |
-| AI 补全 | 在网页输入框打字，停顿后出现灰色补全 → 按 `Tab` 接受 |
+| AI 操作网页 | 在对话里说「高亮这段文字 / 跳到那个标题 / 把这个按钮标出来」 |
 | 知识库查询 | 划词后输入问题，开启 RAG 后 AI 结合你的收藏回答；直接问「知识库有什么内容」可查看全部条目 |
 
-## 目录结构
+## 项目结构
 
 ```
 bookmark-sorter/
-├── manifest.json   # MV3 清单
-├── background.js   # Service Worker：DeepSeek 流式调用 + Agent 编排/工具审批
-├── content.js      # 划词悬浮 AI 对话 + 页面命令系统（Shadow DOM 隔离样式）
-├── mcp.js          # MCP 客户端（Streamable HTTP）
-├── tools.js        # Agent 内置工具声明与执行（含 page_command）
-├── options.html    # 设置页（API Key/模型/RAG/工具审批/快捷语句/MCP）
-├── options.css / options.js
-├── popup.html      # 弹窗（快速收录 + 列表）
-├── popup.css / popup.js
-├── manager.html    # 完整管理页
-├── manager.css / manager.js
-├── shared.js       # 公共逻辑（存储/类型/标签/星级/迁移）
-└── icons/          # 插件与仓库 Logo
+├── manifest.json           # MV3 清单（module SW + 内容脚本动态 import）
+├── background.js           # Service Worker 入口：AI 请求 / Agent 编排 / 消息转发
+├── content.js              # 内容脚本入口：动态 import() 加载 lib/ 模块
+├── popup.js / options.js / manager.js   # 各页面 ES Module 入口
+├── lib/
+│   ├── shared/             # 跨层基础：常量 / 工具 / 存储 / 设置 / RAG
+│   │   ├── constants.js    # 类型、平台、星级、数据版本
+│   │   ├── utils.js        # 文本/HTML/排序/toast 等工具函数
+│   │   ├── store.js        # 知识库 CRUD 与旧版数据迁移
+│   │   ├── settings.js     # AI 设置默认值与读取
+│   │   └── rag.js          # RAG 检索、引用元数据、AI 消息构建
+│   ├── assistant/          # AI 编排层：模型 / 工具 / MCP / Agent 循环
+│   │   ├── llm.js          # DeepSeek（OpenAI 兼容）调用与重试
+│   │   ├── tools.js        # 内置工具声明与执行（含 page_command）
+│   │   ├── mcp.js          # MCP 客户端（Streamable HTTP）
+│   │   └── agent.js        # Agent 主循环 + 工具审批
+│   └── page/               # 页面层：正文 / 引用定位 / 命令 / 对话 UI
+│       ├── page-text.js    # 网页正文提取
+│       ├── citation.js     # 字符级引用定位 + 高亮浮层
+│       ├── commands.js     # 页面命令系统（8 种命令）
+│       └── chat.js         # 悬浮按钮 / 气泡 / 对话面板 UI
+├── docs/assets/            # 文档配图 + 插件与仓库 Logo
 ```
+
+## License
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
