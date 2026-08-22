@@ -6,12 +6,19 @@
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-  <header>
-    <h1>RecallFlow</h1>
-    <span id="total-badge" class="badge">0 条</span>
+  <header class="app-header">
+    <div class="brand-group">
+      <img class="brand-logo" src="docs/assets/recallflow-mark.svg" alt="" aria-hidden="true">
+      <div><h1>RecallFlow</h1><span class="header-caption">快速收录</span></div>
+    </div>
+    <div class="header-actions">
+      <span id="total-badge" class="badge">0 条</span>
+      <button id="open-manager-top" class="header-icon" type="button" title="打开知识库" aria-label="打开知识库">↗</button>
+    </div>
   </header>
 
   <section id="add-panel" class="add-panel">
+    <div class="section-kicker"><span>当前页面</span><div class="section-tools"><span class="shortcut-hint">Enter 保存</span><button id="toggle-add-panel" class="collapse-btn" type="button" aria-expanded="true">收起</button></div></div>
     <div class="add-head">
       <div class="add-title" id="add-title">加载中...</div>
       <div class="add-meta">
@@ -24,18 +31,23 @@
       <span class="star-picker" id="star-picker"></span>
       <span class="star-picker-name" id="star-picker-name"></span>
     </div>
-    <input id="tags-input" class="note-input" type="text" placeholder="标签，逗号分隔（如：动态规划, 面试）">
-    <input id="note-input" class="note-input" type="text" placeholder="备注 / 摘要（可选）">
-    <button id="add-btn" class="primary-btn">添加 / 更新</button>
+    <label class="input-label" for="tags-input">标签 <span>可选</span></label>
+    <input id="tags-input" class="note-input" type="text" placeholder="如：动态规划，面试" aria-label="标签，逗号分隔">
+    <label class="input-label" for="note-input">备注 <span>可选</span></label>
+    <input id="note-input" class="note-input" type="text" placeholder="写一句摘要，方便以后找回" aria-label="备注或摘要">
+    <button id="add-btn" class="primary-btn">添加到知识库</button>
   </section>
+  <section id="page-unavailable" class="page-unavailable hidden" aria-live="polite"><span class="empty-ico">⊙</span><strong>当前页面无法收录</strong><span>请打开普通网页后再试</span></section>
+
+  <div class="list-head"><div><strong>最近收录</strong><span id="visible-count" class="visible-count"></span></div><label class="list-search"><span aria-hidden="true">⌕</span><input id="list-search" type="search" placeholder="搜索标题、标签..." aria-label="搜索知识库"></label></div>
 
   <div class="toolbar">
     <nav class="filters" id="filters">
-      <button class="filter-chip active" data-filter="all">全部</button>
-      <button class="filter-chip" data-filter="wrong">错题</button>
-      <button class="filter-chip" data-filter="article">文章</button>
-      <button class="filter-chip" data-filter="ai">AI</button>
-      <button class="filter-chip" data-filter="note">笔记</button>
+      <button class="filter-chip active" data-filter="all" aria-pressed="true">全部</button>
+      <button class="filter-chip" data-filter="wrong" aria-pressed="false">错题</button>
+      <button class="filter-chip" data-filter="article" aria-pressed="false">文章</button>
+      <button class="filter-chip" data-filter="ai" aria-pressed="false">AI</button>
+      <button class="filter-chip" data-filter="note" aria-pressed="false">笔记</button>
     </nav>
     <select id="sort-select" class="sort-select" title="排序方式">
       <option value="updated">最近更新</option>
