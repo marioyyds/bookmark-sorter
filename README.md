@@ -1,6 +1,8 @@
-# RecallFlow (Edge 插件)
+<p align="center">
+  <img src="./icons/recallflow-github-logo.svg" alt="RecallFlow logo">
+</p>
 
-![RecallFlow Logo](logo.svg)  ![RecallFlow](https://img.shields.io/badge/RecallFlow-1a1a1a?style=for-the-badge)
+# RecallFlow (Edge 插件)
 
 面向 AI 时代的 RecallFlow：统一收录**算法错题、技术文章、AI 工具与 Prompt、手动笔记**，支持类型分类、标签、星级与全文搜索；并内置 **RecallFlow**，支持划词问答、翻译、解释、总结，以及基于知识库的 RAG 检索问答。数据存本地（`chrome.storage.local`）。
 
