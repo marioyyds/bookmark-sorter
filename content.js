@@ -16,6 +16,34 @@ if (window.__kbAiLoaded) {
         sendResponse({ text: pageText.extractPageText() });
         return true;
       }
+      if (msg && msg.type === 'kbGetPageSnapshot') {
+        sendResponse(pageText.extractPageSnapshot(msg.options || {}));
+        return true;
+      }
+      if (msg && msg.type === 'kbTypeText') {
+        sendResponse(commands.typeText(msg.params || {}));
+        return false;
+      }
+      if (msg && msg.type === 'kbPressKey') {
+        sendResponse(commands.pressKey(msg.params || {}));
+        return false;
+      }
+      if (msg && msg.type === 'kbSelectOption') {
+        sendResponse(commands.selectOption(msg.params || {}));
+        return false;
+      }
+      if (msg && msg.type === 'kbCheckBox') {
+        sendResponse(commands.checkBox(msg.params || {}));
+        return false;
+      }
+      if (msg && msg.type === 'kbWaitForElement') {
+        commands.waitForElement(msg.params || {}).then(sendResponse);
+        return true;
+      }
+      if (msg && msg.type === 'kbGetAttribute') {
+        sendResponse(commands.getAttribute(msg.params || {}));
+        return false;
+      }
       if (msg && msg.type === 'kbPageCommand') {
         sendResponse(commands.executePageCommand(msg.command, msg.params || {}));
         return false;

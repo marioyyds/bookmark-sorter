@@ -85,6 +85,21 @@ Agent 可作为 **MCP 客户端**连接远程 MCP 服务器（Streamable HTTP）
 - 每次对话 Agent 会按需连接并拉取工具清单（缓存 5 分钟），在工具调用循环里统一调度内置与 MCP 工具。
 - **重要**：MV3 跨域限制要求把每个 MCP 服务器的源加入 `manifest.json` 的 `host_permissions`（如 `"https://host/*"`），否则后台无法发起请求。
 
+### Agent 运行时可靠性
+
+- **统一工具注册表**：`lib/assistant/tools.js` 中的 `TOOL_REGISTRY` 是内置工具的单一来源；模型工具列表、权限策略、MCP 合并和参数校验都从它派生。
+- **DOM 快照与动作验证**：新增 `get_page_snapshot`；`click`、`type_text`、`select_option`、`check_box`、滚动等页面动作会在执行前后采集轻量快照，并返回 URL、正文、交互元素、滚动位置和验证结果。快照中的 `rf-*` 引用可直接传给这些工具或 `page_command` 的 `ref` 参数。
+- **表单与等待工具**：Agent 可使用 `type_text`、`press_key`、`select_option`、`check_box`、`wait_for_element` 和 `get_attribute` 完成表单操作、等待异步渲染和读取元素状态；写入类工具默认需要用户审批。
+- **跨标签页操作**：`open_tab` 会等待新页面内容脚本就绪并自动绑定后续操作；`list_tabs` 返回 `tabId`，可通过 `switch_tab` 切换后继续执行 DOM 工具；`page_command(click)` 点击带 `target="_blank"` 的链接时也会自动发现新标签页并绑定，同时在返回结果中附带新页面的标题、URL 与关键元素摘要，模型可直接据此判断完成，不必再次截图。
+- **意图路由**：`lib/assistant/intent-router.js` 在任务开始前把指令归类为「浏览器操作 / 知识库查询 / 资料研究 / 普通对话」，并据此提供工具白名单、推理轮数预算和完成指引——浏览器任务不会误调知识库检索或网页抓取；「继续 / 接着 / 好的」等承接语会继承上一轮意图。系统提示按实际可用工具动态生成，并明确禁止在文本里模拟 `<page_command>` 等 XML 伪工具调用。
+- **完成条件**：`complete_task(summary, evidence?)` 是终止性工具。模型确认目标达成（如目标页面标题/URL 已匹配、样式已修改、回答已给出）后调用它结束任务，不再空转 `list_tabs / switch_tab / get_page_snapshot`。
+- **对话时间线**：工具轮的过程叙述实时流式输出，并与工具步骤卡片在同一时间线交插呈现（叙述 → 工具 → 叙述），历史记录按相同顺序渲染；叙述段结束时自动移除流式光标。
+
+例如“打开 B 站搜索视频”会按如下链路执行：`open_tab({url: "https://www.bilibili.com"})` → `get_page_snapshot` → `type_text` → `press_key`/`click` → `wait_for_element`。登录、验证码和风控页面仍需用户手动处理。
+
+- **Session 恢复**：Agent 每轮会把可恢复状态保存到 MV3 `chrome.storage.session`。重新使用相同 `runId` 发起 Agent 请求时，会恢复消息、工具计数和上下文；已完成/失败的 Session 不会被继续执行。
+- **卡死检测**：除最大轮数/工具数外，还会检测滑动窗口内的重复动作和连续无进展动作，先发出 `stuck-warning`，达到阈值后安全停止。出现可观察进展（新标签页、页面内容/URL 变化、等待匹配成功）会自动重置重复计数；只读观察工具（`get_page_snapshot` 等）比变更类工具更宽松，避免正常搜索/翻页流程被误判。
+
 ## 安装方法 (Edge)
 
 1. 打开 Edge，地址栏输入 `edge://extensions/`
@@ -127,8 +142,12 @@ bookmark-sorter/
 │   ├── assistant/          # AI 编排层：模型 / 工具 / MCP / Agent 循环
 │   │   ├── llm.js          # DeepSeek（OpenAI 兼容）调用与重试
 │   │   ├── tools.js        # 内置工具声明与执行（含 page_command）
+│   │   ├── intent-router.js # 意图路由：工具白名单 / 预算 / 完成指引
 │   │   ├── mcp.js          # MCP 客户端（Streamable HTTP）
-│   │   └── agent.js        # Agent 主循环 + 工具审批
+│   │   ├── agent-state.js  # Agent 任务与工具调用状态机
+│   │   ├── agent.js        # Agent 主循环 + 工具审批
+│   │   ├── session-store.js # Agent Session 持久化与恢复
+│   │   └── stuck-detector.js # 卡死检测（重复 / 无进展）
 │   └── page/               # 页面层：正文 / 引用定位 / 命令 / 对话 UI
 │       ├── page-text.js    # 网页正文提取
 │       ├── citation.js     # 字符级引用定位 + 高亮浮层
