@@ -115,6 +115,36 @@ const BUILTIN_TOOLS = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'page_command',
+      description:
+        '对当前网页执行结构化 DOM 命令，用于高亮、定位、滚动、标注、点击或读取页面元素。当用户要求「高亮这段文字」「跳到某个标题」「把某块标出来」「点这个按钮」「改一下样式」等页面操作时使用。命令：highlight(高亮)、clear_highlights(清除)、scroll_to(滚动到)、scroll_by(按偏移滚动)、outline(描边标注)、set_style(临时改样式)、click(点击)、get_text(读取文本)。定位方式二选一：text(要匹配的文本片段) 或 selector(CSS 选择器)。',
+      parameters: {
+        type: 'object',
+        properties: {
+          command: {
+            type: 'string',
+            enum: ['highlight', 'clear_highlights', 'scroll_to', 'scroll_by', 'outline', 'set_style', 'click', 'get_text'],
+            description: '要执行的命令名',
+          },
+          text: { type: 'string', description: '要定位的文本片段（与 selector 二选一）' },
+          selector: { type: 'string', description: 'CSS 选择器（与 text 二选一）' },
+          color: { type: 'string', description: '高亮/描边颜色，如 #ff0000 或 rgba(255,0,0,.4)' },
+          styles: { type: 'object', description: 'set_style 要应用的样式对象，如 {"backgroundColor":"#fff3a3"}' },
+          top: { type: 'number', description: 'scroll_to 的目标纵坐标(px)' },
+          left: { type: 'number', description: 'scroll_to 的目标横坐标(px)' },
+          x: { type: 'number', description: 'scroll_by 横向偏移(px)' },
+          y: { type: 'number', description: 'scroll_by 纵向偏移(px)' },
+          behavior: { type: 'string', enum: ['auto', 'smooth'], description: '滚动行为，默认 smooth' },
+          block: { type: 'string', enum: ['start', 'center', 'end'], description: '滚动对齐方式，默认 start' },
+          duration: { type: 'integer', description: '临时效果持续时间(ms)，默认 1500' },
+        },
+        required: ['command'],
+      },
+    },
+  },
 ];
 
 // 工具本身声明风险等级，Agent 编排器据此决定是否需要用户确认。
@@ -129,6 +159,7 @@ const TOOL_METADATA = {
   remove_entry: { risk: 'destructive', requiresApproval: true },
   open_tab: { risk: 'browser', requiresApproval: true },
   fetch_webpage: { risk: 'network', requiresApproval: true },
+  page_command: { risk: 'page', requiresApproval: true },
 };
 
 function getToolMetadata(name) {
@@ -141,6 +172,7 @@ function getToolMetadata(name) {
 const AGENT_SYSTEM_PROMPT = `你是一个具备工具调用能力的个人知识库 AI 助手。你可以使用以下工具：
 - 检索、列出、查看、增删用户的个人知识库（算法错题、技术文章、AI·Prompt、笔记）；
 - 读取当前浏览的网页正文（read_current_page）、列出/打开浏览器标签页、抓取外部网页（fetch_webpage）；
+- 通过 page_command 对当前网页执行结构化命令：高亮(highlight)、清除(clear_highlights)、滚动(scroll_to/scroll_by)、描边(outline)、临时改样式(set_style)、点击(click)、读取元素文本(get_text)；
 - 连接用户配置的 MCP 服务器（工具名以 mcp__ 开头），用于访问更多外部能力。
 
 请优先用工具获取真实信息后再回答，不要编造不存在的内容。回答使用中文，可用 Markdown 排版；凡是依据知识库、当前页面或第三方网页证据的句子，都必须在对应句末使用 [n] 标注来源编号，不要只在回答末尾集中列出引用。当用户只是闲聊或明确无需工具时，直接回答即可。`;
@@ -288,6 +320,20 @@ async function executeTool(name, args, ctx) {
           result:
             '抓取网页失败：' + e.message + '（若为目标站跨域，请将其域名加入 manifest.json 的 host_permissions；或改用 MCP fetch 服务器以突破浏览器跨域限制）',
         };
+      }
+    }
+    case 'page_command': {
+      const tabId = ctx.tabId;
+      if (!tabId) return { result: '无法定位当前标签页（可能不在前台页面）。' };
+      try {
+        const res = await new Promise((resolve) => {
+          chrome.tabs.sendMessage(tabId, { type: 'kbPageCommand', command: args.command, params: args }, (r) => resolve(r));
+        });
+        if (!res) return { result: '页面命令无响应（内容脚本未注入或页面不支持）。' };
+        if (res.ok === false) return { result: '页面命令「' + args.command + '」失败：' + (res.error || '未知错误') };
+        return { result: res.result || '已执行页面命令：' + args.command };
+      } catch (e) {
+        return { result: '页面命令执行失败：' + e.message };
       }
     }
     default:

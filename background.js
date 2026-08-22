@@ -314,6 +314,23 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     sendResponse({ ok: true });
     return false;
   }
+  if (msg && msg.type === 'pageCommand') {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const tab = tabs && tabs[0];
+      if (!tab || !tab.id) {
+        sendResponse({ ok: false, error: '无活动标签页' });
+        return;
+      }
+      chrome.tabs.sendMessage(tab.id, { type: 'kbPageCommand', command: msg.command, params: msg.params || {} }, (res) => {
+        if (chrome.runtime.lastError) {
+          sendResponse({ ok: false, error: chrome.runtime.lastError.message });
+        } else {
+          sendResponse(res || { ok: false, error: '页面命令无响应' });
+        }
+      });
+    });
+    return true;
+  }
 });
 
 chrome.runtime.onConnect.addListener((port) => {

@@ -32,6 +32,24 @@
 - **对话快捷语句**：对话框提供“总结全文”“翻译成中文”等快捷按钮，也可在设置页自定义
 - **自适应窗口**：悬浮模式下，回复时面板高度随内容自动伸缩，最高不超过视口，始终贴合屏幕右下角
 
+### 页面命令系统（Agent 控制网页 DOM）
+
+Agent 可通过 `page_command` 工具对当前网页执行结构化命令（需审批），也可由用户直接触发：
+
+| 命令 | 说明 |
+| --- | --- |
+| `highlight` | 高亮匹配文本（`text`）或元素（`selector`），不改动页面 DOM |
+| `clear_highlights` | 清除高亮 / 描边 / 临时样式 |
+| `scroll_to` | 滚动到目标文本/元素，或指定 `top`/`left` 坐标 |
+| `scroll_by` | 按 `x`/`y` 偏移滚动 |
+| `outline` | 用边框描边标注目标元素（默认 1.5s 后消失） |
+| `set_style` | 临时修改目标元素样式（`styles` 对象，可设 `duration` 自动还原） |
+| `click` | 点击目标元素 |
+| `get_text` | 读取目标元素的文本 |
+
+- **AI 路径**：在对话里说「高亮这段文字 / 跳到那个标题 / 把这个按钮标出来」，Agent 会调用 `page_command`（默认需在面板确认一次）。
+- **用户路径 API**：`chrome.runtime.sendMessage({ type: 'pageCommand', command, params })`，后台会转发给当前活动标签页（供未来 UI/右键菜单使用）。
+
 ### 接入 MCP 服务器（扩展 Agent 工具）
 
 Agent 可作为 **MCP 客户端**连接你自建/第三方的远程 MCP 服务器（Streamable HTTP），自动加载其工具（工具名以 `mcp__` 开头），从而访问文件系统、联网抓取、Notion 等任意外部能力。
