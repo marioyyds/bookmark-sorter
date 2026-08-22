@@ -166,6 +166,18 @@ function render() {
   renderTagFilter();
   renderStats();
   renderBulkBar();
+  renderActiveFilters();
+}
+
+function renderActiveFilters() {
+  const el = $('active-filter-list');
+  const labels = [];
+  if (currentType !== 'all') labels.push('类型：' + ((ITEM_TYPES.find((t) => t.id === currentType) || {}).name || currentType));
+  if (currentTag !== 'all') labels.push('标签：' + currentTag);
+  if (currentStar !== 'all') labels.push('星级：' + currentStar);
+  const q = $('search').value.trim();
+  if (q) labels.push('搜索：' + q);
+  el.innerHTML = labels.length ? labels.map((x) => `<span class="active-filter-chip">${esc(x)}</span>`).join('') : '<span class="filter-empty">全部内容</span>';
 }
 
 function renderStats() {
@@ -290,6 +302,12 @@ document.querySelectorAll('.stat-card').forEach((el) => {
 
 // 搜索输入添加防抖，避免频繁渲染
 $('search').addEventListener('input', debounce(render, 200));
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); $('search').focus(); }
+});
+$('clear-filters').addEventListener('click', () => {
+  currentType = 'all'; currentTag = 'all'; currentStar = 'all'; $('search').value = ''; render();
+});
 
 $('sort-select').addEventListener('change', (e) => {
   sortBy = e.target.value;

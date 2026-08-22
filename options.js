@@ -13,6 +13,10 @@ async function load() {
   $('target-lang').value = s.targetLang;
   $('page-context').checked = s.pageContext !== false;
   $('tool-approval').checked = s.toolApproval !== false;
+  const policy = Object.assign({ read: true, edit: false, commands: false, browser: false, mcp: false }, s.toolApprovalPolicy || {});
+  ['read', 'edit', 'commands', 'browser', 'mcp'].forEach((k) => { $('approval-' + k).checked = !!policy[k]; });
+  $('approval-notify').checked = s.toolApprovalNotify !== false;
+  syncApprovalPreset();
   $('quick-prompts').value = (s.quickPrompts || AI_SETTINGS_DEFAULTS.quickPrompts).join('\n');
   renderMcp(s.mcpServers || []);
 }
@@ -60,6 +64,8 @@ $('save-btn').addEventListener('click', async () => {
     targetLang: $('target-lang').value.trim() || AI_SETTINGS_DEFAULTS.targetLang,
     pageContext: $('page-context').checked,
     toolApproval: $('tool-approval').checked,
+    toolApprovalPolicy: Object.fromEntries(['read', 'edit', 'commands', 'browser', 'mcp'].map((k) => [k, $('approval-' + k).checked])),
+    toolApprovalNotify: $('approval-notify').checked,
     quickPrompts: $('quick-prompts').value.split(/\r?\n/).map((x) => x.trim()).filter(Boolean).slice(0, 12),
     mcpServers: collectMcp(),
   };
@@ -93,5 +99,18 @@ $('mcp-add').addEventListener('click', () => {
   list.push({ id: '', url: '', headers: {} });
   renderMcp(list);
 });
+
+function syncApprovalPreset() {
+  const keys = ['read', 'edit', 'commands', 'browser', 'mcp'];
+  const values = keys.map((k) => $('approval-' + k).checked);
+  $('approval-preset').value = values.every(Boolean) ? 'all' : values[0] && values.slice(1).every((v) => !v) ? 'safe' : 'custom';
+}
+$('approval-preset').addEventListener('change', (e) => {
+  if (e.target.value === 'safe' || e.target.value === 'all') {
+    const on = e.target.value === 'all';
+    ['read', 'edit', 'commands', 'browser', 'mcp'].forEach((k) => { $('approval-' + k).checked = on || k === 'read'; });
+  }
+});
+document.querySelectorAll('.approval-list input').forEach((el) => el.addEventListener('change', syncApprovalPreset));
 
 load();

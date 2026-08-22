@@ -755,3 +755,31 @@ footer {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
+
+/* P0/P1 UI refresh: clearer hierarchy and touch targets */
+.app-header { display:grid; grid-template-columns:auto minmax(240px,1fr) auto; align-items:center; gap:20px; padding:14px 20px; background:var(--card); color:var(--text); border-bottom:1px solid var(--border); border-radius:0 0 14px 14px; }
+.brand-group,.header-actions { display:flex; align-items:center; gap:8px; }
+.brand-mark { display:grid; place-items:center; width:32px; height:32px; border-radius:9px; color:#fff; background:var(--primary); font-weight:700; }
+.brand-group h1 { font-size:16px; line-height:1.2; }
+.page-caption { color:var(--text-faint); font-size:11px; }
+.search-box { display:flex; align-items:center; gap:8px; min-height:40px; padding:0 12px; background:var(--bg); border:1px solid var(--border); border-radius:10px; }
+.search-box:focus-within { border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-soft); }
+.search-box input { flex:1; min-width:0; border:0; outline:0; background:transparent; color:var(--text); font:inherit; }
+.search-box kbd { color:var(--text-faint); font-size:11px; }
+.btn { min-height:40px; padding:0 14px; border-radius:9px; font:inherit; cursor:pointer; }
+.btn-primary { color:#fff; background:var(--primary); border:1px solid var(--primary); }
+.btn-primary:hover { background:var(--primary-hover); }
+.btn-secondary { color:var(--text-sub); background:var(--card); border:1px solid var(--border); }
+.more-menu { position:relative; }
+.more-menu summary { list-style:none; display:grid; place-items:center; min-width:40px; }
+.more-menu summary::-webkit-details-marker { display:none; }
+.more-menu-panel { position:absolute; right:0; top:calc(100% + 8px); display:grid; min-width:130px; padding:6px; background:var(--card); border:1px solid var(--border); border-radius:10px; box-shadow:var(--shadow-hover); z-index:30; }
+.more-menu-panel button { border:0; background:transparent; color:var(--text); padding:9px 10px; text-align:left; border-radius:6px; cursor:pointer; }
+.more-menu-panel button:hover { background:var(--primary-soft); color:var(--primary); }
+.active-filters { display:flex; align-items:center; flex-wrap:wrap; gap:8px; min-height:34px; margin-bottom:12px; color:var(--text-sub); font-size:12px; }
+.filter-label { font-weight:600; }
+.active-filter-chip { padding:4px 9px; border-radius:999px; background:var(--primary-soft); color:var(--primary); }
+.filter-empty { color:var(--text-faint); }
+.link-button { border:0; background:transparent; color:var(--primary); cursor:pointer; }
+.item-select { min-width:18px; min-height:18px; }
+@media (max-width:620px) { .app-header { grid-template-columns:1fr auto; gap:12px; padding:12px 14px; } .search-box { grid-column:1 / -1; grid-row:2; } .btn-primary { min-height:44px; } .mini { min-height:36px; } }

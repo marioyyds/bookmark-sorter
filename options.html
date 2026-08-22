@@ -52,11 +52,19 @@
         <span class="hint">回答时不仅看选中的文字，还把当前网页正文作为上下文一起发给 AI</span>
         <input id="page-context" type="checkbox" class="switch">
       </label>
-      <label class="field switch-field">
-        <span class="field-label">Agent 工具执行前确认</span>
-        <span class="hint">新增/删除知识库、打开网页、抓取外部网页及 MCP 工具调用前，请先确认。</span>
-        <input id="tool-approval" type="checkbox" class="switch">
-      </label>
+      <div class="approval-panel">
+        <div class="approval-head"><div><span class="field-label">自动批准工具</span><span class="hint">像 Cline 一样按能力类别设置；未勾选的操作会在执行前暂停并请求确认。</span></div><select id="approval-preset" aria-label="自动批准预设"><option value="custom">自定义</option><option value="safe">仅安全读取</option><option value="all">全部自动批准</option></select></div>
+        <div class="approval-list">
+          <label class="approval-item"><input id="approval-read" type="checkbox"><span class="approval-icon">⌕</span><span><b>读取项目与知识库</b><small>搜索、读取当前页面、列出标签页</small></span></label>
+          <label class="approval-item sub"><input id="approval-read-all" type="checkbox"><span class="approval-icon">▣</span><span><b>读取所有内容</b><small>允许读取类工具，不再逐次询问</small></span></label>
+          <label class="approval-item"><input id="approval-edit" type="checkbox"><span class="approval-icon">✎</span><span><b>编辑项目与知识库</b><small>新增、修改或删除收藏内容</small></span></label>
+          <label class="approval-item"><input id="approval-commands" type="checkbox"><span class="approval-icon">›_</span><span><b>执行页面命令</b><small>滚动、高亮、点击等页面操作</small></span></label>
+          <label class="approval-item"><input id="approval-browser" type="checkbox"><span class="approval-icon">◎</span><span><b>使用浏览器与网络</b><small>打开标签页、抓取外部网页</small></span></label>
+          <label class="approval-item"><input id="approval-mcp" type="checkbox"><span class="approval-icon">▤</span><span><b>使用 MCP 服务器</b><small>调用已配置的外部工具</small></span></label>
+        </div>
+        <label class="approval-notify"><input id="approval-notify" type="checkbox"><span><b>启用审批通知</b><small>工具暂停等待确认时显示通知</small></span></label>
+        <input id="tool-approval" type="checkbox" hidden checked>
+      </div>
       <label class="field">
         <span class="field-label">翻译目标语言</span>
         <input id="target-lang" type="text" placeholder="中文">

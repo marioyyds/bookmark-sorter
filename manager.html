@@ -6,13 +6,12 @@
   <link rel="stylesheet" href="manager.css">
 </head>
 <body>
-  <header>
-    <h1>RecallFlow</h1>
-    <input id="search" type="text" placeholder="搜索标题 / 备注 / 标签...">
-    <button id="add-note-btn" class="ghost">新建笔记</button>
-    <button id="import-btn" class="ghost">导入 JSON</button>
+  <header class="app-header">
+    <div class="brand-group"><div class="brand-mark" aria-hidden="true">R</div><div><h1>RecallFlow</h1><span class="page-caption">资料库</span></div></div>
+    <label class="search-box"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="搜索标题、备注或标签" aria-label="搜索笔记"><kbd>Ctrl K</kbd></label>
+    <div class="header-actions"><button id="add-note-btn" class="btn btn-primary"><span aria-hidden="true">＋</span> 新建笔记</button><details class="more-menu"><summary class="btn btn-secondary" aria-label="更多操作">⋯</summary><div class="more-menu-panel"><button id="import-btn">导入 JSON</button>
     <input id="import-file" type="file" accept=".json" style="display:none">
-    <button id="export-btn" class="ghost">导出 JSON</button>
+    <button id="export-btn">导出 JSON</button></div></details></div>
   </header>
 
   <div class="bulk-bar hidden" id="bulk-bar">
@@ -25,6 +24,7 @@
   <nav class="type-tabs" id="type-tabs"></nav>
 
   <div class="tag-filter" id="tag-filter"></div>
+  <section class="active-filters" aria-live="polite"><span class="filter-label">当前筛选</span><div id="active-filter-list"><span class="filter-empty">全部内容</span></div><button id="clear-filters" class="link-button" type="button">清除全部</button></section>
 
   <section class="stats" id="stats">
     <div class="stat-card" data-s="all">
