@@ -2,21 +2,22 @@
   "manifest_version": 3,
   "name": "RecallFlow",
   "version": "3.0.0",
-  "description": "RecallFlow：收录算法错题、技术文章、AI 工具与 Prompt、手动笔记，支持划词问答、翻译、解释与基于知识库的 RAG 检索问答。",
+  "description": "RecallFlow：浏览器里的统一 AI 助手——在任意网页上划词即问，让 AI 替你读、操作并记忆，支持基于知识库的 RAG 检索问答。",
   "permissions": ["tabs", "storage", "contextMenus"],
   "host_permissions": ["https://api.deepseek.com/*"],
   "action": {
     "default_popup": "popup.html",
     "default_title": "RecallFlow",
     "default_icon": {
-      "16": "icons/recallflow-mark.svg",
-      "32": "icons/recallflow-mark.svg",
-      "48": "icons/recallflow-mark.svg",
-      "128": "icons/recallflow-mark.svg"
+      "16": "docs/assets/recallflow-mark.svg",
+      "32": "docs/assets/recallflow-mark.svg",
+      "48": "docs/assets/recallflow-mark.svg",
+      "128": "docs/assets/recallflow-mark.svg"
     }
   },
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "type": "module"
   },
   "options_ui": {
     "page": "options.html",
@@ -25,20 +26,24 @@
   "content_scripts": [
     {
       "matches": ["http://*/*", "https://*/*"],
-      "js": ["shared.js", "content.js"],
+      "js": ["content.js"],
       "run_at": "document_idle"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["icons/recallflow-mark.svg"],
+      "resources": ["lib/**/*.js"],
+      "matches": ["http://*/*", "https://*/*"]
+    },
+    {
+      "resources": ["docs/assets/recallflow-mark.svg"],
       "matches": ["http://*/*", "https://*/*"]
     }
   ],
   "icons": {
-    "16": "icons/recallflow-mark.svg",
-    "32": "icons/recallflow-mark.svg",
-    "48": "icons/recallflow-mark.svg",
-    "128": "icons/recallflow-mark.svg"
+    "16": "docs/assets/recallflow-mark.svg",
+    "32": "docs/assets/recallflow-mark.svg",
+    "48": "docs/assets/recallflow-mark.svg",
+    "128": "docs/assets/recallflow-mark.svg"
   }
 }

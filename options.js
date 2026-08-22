@@ -1,3 +1,7 @@
+// 设置页（API Key/模型/RAG/工具审批/快捷语句/MCP）
+import { AI_SETTINGS_KEY, AI_SETTINGS_DEFAULTS, getAISettings } from './lib/shared/settings.js';
+import { esc } from './lib/shared/utils.js';
+
 const $ = (id) => document.getElementById(id);
 
 async function load() {

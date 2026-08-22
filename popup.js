@@ -1,3 +1,24 @@
+// 弹窗（快速收录 + 列表）
+import { STATUS, ITEM_TYPES } from './lib/shared/constants.js';
+import {
+  showToast,
+  starBarHtml,
+  levelNameHtml,
+  sortItems,
+  esc,
+  typeBadgeHtml,
+  tagsHtml,
+  fmtTime,
+  isWebUrl,
+  normalizeUrl,
+  cleanTitle,
+  detectPlatform,
+  detectType,
+  platformColor,
+  parseTags,
+} from './lib/shared/utils.js';
+import { getBook, setBook, upsertItem } from './lib/shared/store.js';
+
 let bookCache = {};
 let currentTab = null;
 let currentUrl = null;

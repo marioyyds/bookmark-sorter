@@ -1,3 +1,20 @@
+// 完整管理页：类型 Tab、标签筛选、搜索、内联编辑、批量操作、导入导出
+import { STATUS, ITEM_TYPES, STAR_LEVELS } from './lib/shared/constants.js';
+import {
+  debounce,
+  logError,
+  showToast,
+  starBarHtml,
+  levelNameHtml,
+  typeBadgeHtml,
+  tagsHtml,
+  fmtTime,
+  esc,
+  sortItems,
+  parseTags,
+} from './lib/shared/utils.js';
+import { getBook, setBook } from './lib/shared/store.js';
+
 let bookCache = {};
 let currentType = 'all';
 let currentTag = 'all';
